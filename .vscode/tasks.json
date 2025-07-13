@@ -1,0 +1,36 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build kernel",
+			"type": "shell",
+			"command": "make",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [],
+			"detail": "Makefile을 사용하여 커널 빌드"
+		},
+		{
+			"label": "run kernel (QEMU)",
+			"type": "shell",
+			"command": "qemu-system-i386 -kernel kernel",
+			"group": "test",
+			"problemMatcher": [],
+			"detail": "QEMU로 빌드된 커널 실행"
+		},
+		{
+			"label": "clean",
+			"type": "shell",
+			"command": "make clean",
+			"problemMatcher": [],
+			"detail": "빌드된 파일 정리"
+		}
+	],
+	"presentation": {
+		"reveal": "always",
+		"panel": "new",
+		"close": true
+	}
+}
