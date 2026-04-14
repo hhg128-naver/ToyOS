@@ -1,3 +1,18 @@
-# .gitignore 파일 내용
-*.dep
+# Build artifacts
 *.o
+kernel
+bootx64.so
+bootx64.efi
+Dependency.dep
+
+# Temporary directories
+iso/
+
+# Editor specific
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
