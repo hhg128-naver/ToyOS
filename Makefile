@@ -26,11 +26,13 @@ EFI_CFLAGS = -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
 EFI_LDFLAGS = -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic \
               -L$(EFI_LIB) $(EFI_CRT0)
 
-# 소스 파일 및 오브젝트 파일 (ASM_SOURCES 제외)
-C_SOURCES   = $(wildcard $(KERNEL_DIR)/*.c)
+# 소스 파일 및 오브젝트 파일
+C_SOURCES    = $(wildcard $(KERNEL_DIR)/*.c)
+ASM_SOURCES  = $(wildcard $(KERNEL_DIR)/*.asm)
 UEFI_SOURCES = $(wildcard $(UEFI_DIR)/*.c)
 
-C_OBJECTS   = $(patsubst $(KERNEL_DIR)/%.c, $(KERNEL_DIR)/%.o, $(C_SOURCES))
+C_OBJECTS    = $(patsubst $(KERNEL_DIR)/%.c, $(KERNEL_DIR)/%.o, $(C_SOURCES))
+ASM_OBJECTS  = $(patsubst $(KERNEL_DIR)/%.asm, $(KERNEL_DIR)/%.o, $(ASM_SOURCES))
 UEFI_OBJECTS = $(patsubst $(UEFI_DIR)/%.c, $(UEFI_DIR)/%.o, $(UEFI_SOURCES))
 
 TARGET  = kernel
@@ -38,11 +40,14 @@ UEFI_TARGET = bootx64.efi
 
 all: $(TARGET) uefi
 
-$(TARGET): $(C_OBJECTS)
+$(TARGET): $(C_OBJECTS) $(ASM_OBJECTS)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 $(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.c
 	$(GCC) $(CFLAGS) $< -o $@
+
+$(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.asm
+	$(NASM) -f elf64 $< -o $@
 
 # UEFI 빌드 규칙
 uefi: $(UEFI_TARGET)

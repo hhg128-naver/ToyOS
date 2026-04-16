@@ -1,5 +1,7 @@
 #include "kernel.h"
 #include "font.h"
+#include "gdt.h"
+#include "idt.h"
 
 /* 
  * 그래픽 콘솔을 위한 전역 상태 변수 
@@ -7,6 +9,7 @@
  */
 static int cursor_x = 0;
 static int cursor_y = 0;
+BootInfo *boot_info_global; // 인터럽트 핸들러 등에서 접근하기 위한 전역 변수
 
 /*
  * ClearScreen: 화면 전체를 지정된 색상으로 초기화합니다.
@@ -80,16 +83,32 @@ void PrintString(BootInfo *binfo, const char *str, uint32_t color) {
  */
 void kmain(BootInfo *boot_info)
 {
+    boot_info_global = boot_info;
+
     /* 1. 화면 초기화 (진한 파란색 배경) */
     ClearScreen(boot_info, 0x00000033);
 
-    /* 2. 환영 메시지 출력 */
+    /* 2. 프로세서 환경 설정 (GDT/IDT) */
+    PrintString(boot_info, "Initializing System Tables...\n", 0x00FFFFFF);
+    
+    InitGDT();
+    PrintString(boot_info, "GDT Setup: OK (Kernel Code: 0x08, Data: 0x10)\n", 0x0000FF00);
+    
+    InitIDT();
+    PrintString(boot_info, "IDT Setup: OK (Exceptions 0-31 registered)\n", 0x0000FF00);
+
+    /* 3. 환영 메시지 출력 */
     PrintString(boot_info, "Welcome to ToyOS! (UEFI 64-bit Mode)\n", 0x00FFFFFF);
     PrintString(boot_info, "------------------------------------\n", 0x0000FF00);
     PrintString(boot_info, "Memory Map Handover Check: OK\n", 0x0000FFFF);
     PrintString(boot_info, "Graphic Console Initialization: OK\n\n", 0x00FFFF00);
 
-    /* 3. 메모리 정보 기반의 디버깅 메시지 (간략화) */
+    /* 4. 테스트: 소프트웨어 인터럽트 발생 (Breakpoint) */
+    PrintString(boot_info, "Testing Interrupt (int 3)...\n", 0x00FFFFFF);
+    __asm__ __volatile__("int $3");
+    PrintString(boot_info, "Interrupt Test: OK (Survived!)\n", 0x0000FF00);
+
+    /* 5. 시스템 정보 요약 */
     uint64_t num_entries = boot_info->mmap_size / boot_info->descriptor_size;
     PrintString(boot_info, "Scanning System Memory Map...\n", 0x00FFFFFF);
 
@@ -107,7 +126,7 @@ void kmain(BootInfo *boot_info)
     }
     
     PrintString(boot_info, "Available Memory Zones Found!\n", 0x0000FF00);
-    PrintString(boot_info, "ToyOS is ready for Next Stage: GDT/IDT Setup.\n", 0x00FFFFFF);
+    PrintString(boot_info, "ToyOS is ready for Next Stage: Memory Management.\n", 0x00FFFFFF);
 
     /* 4. 무한 루프 (시스템 대기) */
     while(1);
