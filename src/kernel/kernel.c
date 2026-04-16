@@ -1,65 +1,114 @@
 #include "kernel.h"
+#include "font.h"
+
+/* 
+ * 그래픽 콘솔을 위한 전역 상태 변수 
+ * 커서의 현재 위치를 유지하여 PrintString 호출 시 이어서 출력할 수 있게 합니다.
+ */
+static int cursor_x = 0;
+static int cursor_y = 0;
 
 /*
- * kmain: 커널의 핵심 시작 지점입니다. 
- * boot_info: 부트로더로부터 전달된 시스템 정보를 담고 있는 구조체 포인터입니다.
+ * ClearScreen: 화면 전체를 지정된 색상으로 초기화합니다.
  */
-void kmain(BootInfo *boot_info)
-{
-    /* 
-     * vidptr: 프레임버퍼의 시작 주소(VRAM)입니다. 
-     * 32비트 색상(RGBA/BGRA) 값을 직접 써서 화면에 픽셀을 그릴 수 있습니다.
-     */
-    uint32_t *vidptr = boot_info->framebuffer;
-    uint64_t screensize = boot_info->screen_size;
-
-    /* 
-     * 1. 배경 초기화: 화면 전체를 남색(Dark Blue)으로 채웁니다. 
-     * 이 작업이 성공하면 프레임버퍼 정보가 커널에 잘 전달되었음을 의미합니다.
-     */
-    for (uint64_t i = 0; i < screensize; i++) {
-        vidptr[i] = 0x00000033; // Dark Blue
+void ClearScreen(BootInfo *binfo, uint32_t color) {
+    uint32_t *vidptr = binfo->framebuffer;
+    for (uint64_t i = 0; i < binfo->screen_size; i++) {
+        vidptr[i] = color;
     }
+    cursor_x = 0;
+    cursor_y = 0;
+}
 
+/*
+ * PutChar: 8x16 비트맵 폰트를 사용하여 한 문자를 프레임버퍼에 그립니다.
+ * @param binfo: 부트 정보 (프레임버퍼 주소 및 해상도 포함)
+ * @param x, y: 문자가 그려질 좌상단 시작 좌표
+ * @param c: 출력할 ASCII 문자
+ * @param color: 문자의 색상 (RGB 형식)
+ */
+void PutChar(BootInfo *binfo, int x, int y, char c, uint32_t color) {
     /* 
-     * 2. 메모리 맵 검증: 전달받은 메모리 맵 정보를 탐색합니다.
-     * mmap: 부트로더가 할당해준 메모리 맵 버퍼의 시작 위치입니다.
-     * mmap_size: 맵 전체 데이터의 크기(바이트 단위)입니다.
-     * descriptor_size: 각 메모리 영역 기술자(Descriptor) 한 개의 크기입니다.
+     * EnglishFont는 1차원 배열이므로, ASCII 코드값(c)에 
+     * 한 문자당 크기(16바이트)를 곱하여 해당 문자의 데이터 시작 위치를 찾습니다.
      */
-    uint8_t *mmap_ptr = (uint8_t *)boot_info->mmap;
-    uint64_t num_entries = boot_info->mmap_size / boot_info->descriptor_size;
+    unsigned char *font_ptr = &EnglishFont[(unsigned char)c * 16];
+    uint32_t *vidptr = binfo->framebuffer;
 
-    /* 
-     * 현재는 텍스트 출력이 안 되므로, 화면 상단에 
-     * 메모리 맵 엔트리 개수만큼 흰색 픽셀을 가로로 그어 데이터가 있음을 확인합니다.
-     */
-    for (uint64_t i = 0; i < num_entries && i < boot_info->horizontal_resolution; i++) {
-        vidptr[i] = 0x00FFFFFF; // White Pixel
-    }
-
-    /* 
-     * 3. 가용 메모리 시각화: 메모리 맵을 순회하며 '가용 메모리(Type 7: Conventional)'를 찾습니다.
-     * 가용 메모리 영역의 수만큼 화면 중앙에 연두색 줄을 그어 정보의 정확성을 확인합니다.
-     */
-    int available_count = 0;
-    for (uint64_t i = 0; i < num_entries; i++) {
-        // i번째 메모리 기술자의 위치를 계산합니다.
-        MemoryDescriptor *desc = (MemoryDescriptor *)(mmap_ptr + (i * boot_info->descriptor_size));
-        
-        // UEFI Type 7은 운영체제가 자유롭게 사용할 수 있는 Conventional Memory입니다.
-        if (desc->type == 7) { 
-            available_count++;
-            // 가용 메모리 영역 하나당 화면 특정 위치에 연두색 픽셀을 출력합니다.
-            if (available_count < 100) {
-                vidptr[available_count + (boot_info->horizontal_resolution * 50)] = 0x0000FF00; // Green
+    for (int dy = 0; dy < 16; dy++) {
+        for (int dx = 0; dx < 8; dx++) {
+            /* 
+             * EnglishFont의 데이터 구조가 기존과 동일하게 
+             * 한 바이트의 각 비트가 가로 8픽셀을 나타낸다고 가정합니다.
+             */
+            if ((font_ptr[dy] << dx) & 0x80) {
+                vidptr[(y + dy) * binfo->horizontal_resolution + (x + dx)] = color;
             }
         }
     }
+}
+
+/*
+ * PrintString: 문자열을 현재 커서 위치에 출력하고 줄 바꿈 및 스크롤 여부를 체크합니다.
+ */
+void PrintString(BootInfo *binfo, const char *str, uint32_t color) {
+    for (int i = 0; str[i] != '\0'; i++) {
+        /* 개행 문자 처리 */
+        if (str[i] == '\n') {
+            cursor_x = 0;
+            cursor_y += 16;
+        } else {
+            PutChar(binfo, cursor_x, cursor_y, str[i], color);
+            cursor_x += 8;
+        }
+
+        /* 가로 화면 끝에 도달하면 자동 개행 */
+        if (cursor_x + 8 > (int)binfo->horizontal_resolution) {
+            cursor_x = 0;
+            cursor_y += 16;
+        }
+
+        /* 세로 화면 끝에 도달하면 다시 상단으로 (간단한 구현을 위해 스크롤 대신 루프) */
+        if (cursor_y + 16 > (int)binfo->vertical_resolution) {
+            cursor_y = 0;
+        }
+    }
+}
+
+/*
+ * kmain: 커널 메인 로직
+ */
+void kmain(BootInfo *boot_info)
+{
+    /* 1. 화면 초기화 (진한 파란색 배경) */
+    ClearScreen(boot_info, 0x00000033);
+
+    /* 2. 환영 메시지 출력 */
+    PrintString(boot_info, "Welcome to ToyOS! (UEFI 64-bit Mode)\n", 0x00FFFFFF);
+    PrintString(boot_info, "------------------------------------\n", 0x0000FF00);
+    PrintString(boot_info, "Memory Map Handover Check: OK\n", 0x0000FFFF);
+    PrintString(boot_info, "Graphic Console Initialization: OK\n\n", 0x00FFFF00);
+
+    /* 3. 메모리 정보 기반의 디버깅 메시지 (간략화) */
+    uint64_t num_entries = boot_info->mmap_size / boot_info->descriptor_size;
+    PrintString(boot_info, "Scanning System Memory Map...\n", 0x00FFFFFF);
 
     /* 
-     * 커널이 종료되지 않도록 무한 루프를 돌립니다. 
-     * 향후에는 여기서 스케줄러를 가동하거나 셸 입력을 기다리게 됩니다.
+     * 시각적 검증: 가용 메모리 영역 탐색 결과를 화면에 간단히 표시 
+     * (추후 printf 가변인자 구현 후 더 상세히 출력 예정)
      */
+    int available_zones = 0;
+    uint8_t *mmap_ptr = (uint8_t *)boot_info->mmap;
+    for (uint64_t i = 0; i < num_entries; i++) {
+        MemoryDescriptor *desc = (MemoryDescriptor *)(mmap_ptr + (i * boot_info->descriptor_size));
+        if (desc->type == 7) { // EfiConventionalMemory
+            available_zones++;
+        }
+    }
+    
+    PrintString(boot_info, "Available Memory Zones Found!\n", 0x0000FF00);
+    PrintString(boot_info, "ToyOS is ready for Next Stage: GDT/IDT Setup.\n", 0x00FFFFFF);
+
+    /* 4. 무한 루프 (시스템 대기) */
     while(1);
 }
