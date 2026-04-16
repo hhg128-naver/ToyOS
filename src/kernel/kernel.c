@@ -2,6 +2,8 @@
 #include "font.h"
 #include "gdt.h"
 #include "idt.h"
+#include "pmm.h"
+#include "vmm.h"
 
 /* 
  * 그래픽 콘솔을 위한 전역 상태 변수 
@@ -52,7 +54,7 @@ void PutChar(BootInfo *binfo, int x, int y, char c, uint32_t color) {
 }
 
 /*
- * PrintString: 문자열을 현재 커서 위치에 출력하고 줄 바꿈 및 스크롤 여부를 체크합니다.
+ * PrintString: 문자열을 현재 커서 위치에 출력합니다.
  */
 void PrintString(BootInfo *binfo, const char *str, uint32_t color) {
     for (int i = 0; str[i] != '\0'; i++) {
@@ -89,45 +91,32 @@ void kmain(BootInfo *boot_info)
     ClearScreen(boot_info, 0x00000033);
 
     /* 2. 프로세서 환경 설정 (GDT/IDT) */
-    PrintString(boot_info, "Initializing System Tables...\n", 0x00FFFFFF);
-    
+    PrintString(boot_info, "Initializing System Tables (GDT/IDT)...\n", 0x00FFFFFF);
     InitGDT();
     PrintString(boot_info, "GDT Setup: OK (Kernel Code: 0x08, Data: 0x10)\n", 0x0000FF00);
     
     InitIDT();
-    PrintString(boot_info, "IDT Setup: OK (Exceptions 0-31 registered)\n", 0x0000FF00);
+    PrintString(boot_info, "System Tables Setup: OK\n", 0x0000FF00);
 
-    /* 3. 환영 메시지 출력 */
-    PrintString(boot_info, "Welcome to ToyOS! (UEFI 64-bit Mode)\n", 0x00FFFFFF);
+    /* 3. 메모리 관리자 초기화 (PMM/VMM) */
+    PrintString(boot_info, "Initializing Physical Memory Manager (PMM)...\n", 0x00FFFFFF);
+    PMM_Init(boot_info);
+    PrintString(boot_info, "PMM Setup: OK\n", 0x0000FF00);
+
+    PrintString(boot_info, "Initializing Virtual Memory Manager (VMM)...\n", 0x00FFFFFF);
+    VMM_Init(boot_info);
+    PrintString(boot_info, "VMM Setup: OK (4-Level Paging Ready)\n", 0x0000FF00);
+
+    /* 4. 환영 메시지 및 인터럽트 테스트 */
+    PrintString(boot_info, "\nWelcome to ToyOS! (UEFI 64-bit Mode)\n", 0x00FFFFFF);
     PrintString(boot_info, "------------------------------------\n", 0x0000FF00);
-    PrintString(boot_info, "Memory Map Handover Check: OK\n", 0x0000FFFF);
-    PrintString(boot_info, "Graphic Console Initialization: OK\n\n", 0x00FFFF00);
-
-    /* 4. 테스트: 소프트웨어 인터럽트 발생 (Breakpoint) */
+    
     PrintString(boot_info, "Testing Interrupt (int 3)...\n", 0x00FFFFFF);
     __asm__ __volatile__("int $3");
-    PrintString(boot_info, "Interrupt Test: OK (Survived!)\n", 0x0000FF00);
+    PrintString(boot_info, "Interrupt Test: OK (Survived!)\n\n", 0x0000FF00);
 
-    /* 5. 시스템 정보 요약 */
-    uint64_t num_entries = boot_info->mmap_size / boot_info->descriptor_size;
-    PrintString(boot_info, "Scanning System Memory Map...\n", 0x00FFFFFF);
+    PrintString(boot_info, "ToyOS is now running with Full Memory Control.\n", 0x00FFFFFF);
+    PrintString(boot_info, "Ready for Next Stage: Kernel Heap & Multitasking.\n", 0x0000FFFF);
 
-    /* 
-     * 시각적 검증: 가용 메모리 영역 탐색 결과를 화면에 간단히 표시 
-     * (추후 printf 가변인자 구현 후 더 상세히 출력 예정)
-     */
-    int available_zones = 0;
-    uint8_t *mmap_ptr = (uint8_t *)boot_info->mmap;
-    for (uint64_t i = 0; i < num_entries; i++) {
-        MemoryDescriptor *desc = (MemoryDescriptor *)(mmap_ptr + (i * boot_info->descriptor_size));
-        if (desc->type == 7) { // EfiConventionalMemory
-            available_zones++;
-        }
-    }
-    
-    PrintString(boot_info, "Available Memory Zones Found!\n", 0x0000FF00);
-    PrintString(boot_info, "ToyOS is ready for Next Stage: Memory Management.\n", 0x00FFFFFF);
-
-    /* 4. 무한 루프 (시스템 대기) */
     while(1);
 }

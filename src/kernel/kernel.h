@@ -1,6 +1,8 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
+#define NULL ((void*)0)
+
 /*
  * 표준 정수형 정의: 베어메탈 환경에서는 라이브러리가 없으므로 직접 정의하여
  * 데이터 크기를 명확히 관리합니다.
