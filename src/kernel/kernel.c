@@ -5,6 +5,10 @@
 #include "pmm.h"
 #include "vmm.h"
 #include "heap.h"
+#include "pic.h"
+
+/* 어셈블리(asm_utils.asm)에서 정의됨 */
+extern void EnableInterrupts();
 
 /* 
  * 그래픽 콘솔을 위한 전역 상태 변수 
@@ -127,8 +131,14 @@ void kmain(BootInfo *boot_info)
     kfree(ptr2);
     PrintString(boot_info, "kfree Test: OK (Blocks Freed)\n", 0x0000FF00);
 
-    PrintString(boot_info, "\nToyOS is now running with Full Memory Control.\n", 0x00FFFFFF);
-    PrintString(boot_info, "Ready for Next Stage: Kernel Heap & Multitasking.\n", 0x0000FFFF);
+    /* 6. 인터럽트 및 PIC 초기화 */
+    PrintString(boot_info, "Initializing PIC & Enabling Interrupts...\n", 0x00FFFFFF);
+    PIC_Init();
+    EnableInterrupts();
+    PrintString(boot_info, "System Ready for Input.\n", 0x0000FF00);
+
+    PrintString(boot_info, "\nToyOS is now running with Full Memory & IRQ Control.\n", 0x00FFFFFF);
+    PrintString(boot_info, "Try typing something on your keyboard!\n", 0x0000FFFF);
 
     while(1);
 }

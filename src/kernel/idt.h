@@ -32,4 +32,8 @@ extern void isr3();  // Breakpoint
 extern void isr13(); // General Protection Fault
 extern void isr14(); // Page Fault
 
+/* 하드웨어 인터럽트 핸들러 (어셈블리에서 구현) */
+extern void irq32(); // IRQ 0: Timer
+extern void irq33(); // IRQ 1: Keyboard
+
 #endif

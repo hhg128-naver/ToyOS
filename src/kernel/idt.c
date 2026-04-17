@@ -28,6 +28,10 @@ void InitIDT() {
     SetIDTEntry(13, isr13, 0x8E); // General Protection Fault
     SetIDTEntry(14, isr14, 0x8E); // Page Fault
 
+    /* 하드웨어 인터럽트 핸들러 등록 (벡터 32번부터) */
+    SetIDTEntry(32, irq32, 0x8E); // IRQ 0: Timer
+    SetIDTEntry(33, irq33, 0x8E); // IRQ 1: Keyboard
+
     /* IDT Pointer 설정 */
     idt_ptr.limit = (sizeof(struct IDTEntry) * 256) - 1;
     idt_ptr.base  = (uint64_t)&idt;
