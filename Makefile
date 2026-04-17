@@ -17,11 +17,11 @@ EFI_CRT0    = $(EFI_LIB)/crt0-efi-x86_64.o
 EFI_LDS     = $(EFI_LIB)/elf_x86_64_efi.lds
 
 # 컴파일 플래그 (64-bit Kernel) - boot.asm 제외
-CFLAGS    = -m64 -c -I$(KERNEL_DIR) -fno-stack-protector -mno-red-zone -fno-pic -ffreestanding -nostdlib
+CFLAGS    = -m64 -c -g -I$(KERNEL_DIR) -fno-stack-protector -mno-red-zone -fno-pic -ffreestanding -nostdlib
 LDFLAGS   = -m elf_x86_64 -T $(KERNEL_DIR)/link.ld -nostdlib
 
 # 컴파일 플래그 (UEFI)
-EFI_CFLAGS = -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
+EFI_CFLAGS = -g -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
              -I$(EFI_INC) -I$(EFI_INC)/x86_64 -I$(EFI_INC)/protocol
 EFI_LDFLAGS = -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic \
               -L$(EFI_LIB) $(EFI_CRT0)
@@ -69,6 +69,12 @@ run-uefi: $(UEFI_TARGET) $(TARGET)
 	cp $(UEFI_TARGET) iso/EFI/BOOT/BOOTX64.EFI
 	cp $(TARGET) iso/kernel
 	qemu-system-x86_64 -bios /usr/share/ovmf/OVMF.fd -drive format=raw,file=fat:rw:iso
+
+run-uefi-debug: $(UEFI_TARGET) $(TARGET)
+	mkdir -p iso/EFI/BOOT
+	cp $(UEFI_TARGET) iso/EFI/BOOT/BOOTX64.EFI
+	cp $(TARGET) iso/kernel
+	qemu-system-x86_64 -bios /usr/share/ovmf/OVMF.fd -drive format=raw,file=fat:rw:iso -s -S
 
 clean:
 	rm -f $(C_OBJECTS) $(UEFI_OBJECTS) $(TARGET) $(UEFI_TARGET) bootx64.so
