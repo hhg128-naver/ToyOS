@@ -9,6 +9,9 @@ SRC_DIR = src
 BOOT_DIR = $(SRC_DIR)/bootloader/legacy
 UEFI_DIR = $(SRC_DIR)/bootloader/uefi
 KERNEL_DIR = $(SRC_DIR)/kernel
+BUILD_DIR = build
+KERNEL_BUILD_DIR = $(BUILD_DIR)/kernel
+UEFI_BUILD_DIR = $(BUILD_DIR)/uefi
 
 # UEFI 관련 경로 및 설정
 EFI_INC     = /usr/include/efi
@@ -31,9 +34,9 @@ C_SOURCES    = $(wildcard $(KERNEL_DIR)/*.c)
 ASM_SOURCES  = $(wildcard $(KERNEL_DIR)/*.asm)
 UEFI_SOURCES = $(wildcard $(UEFI_DIR)/*.c)
 
-C_OBJECTS    = $(patsubst $(KERNEL_DIR)/%.c, $(KERNEL_DIR)/%.o, $(C_SOURCES))
-ASM_OBJECTS  = $(patsubst $(KERNEL_DIR)/%.asm, $(KERNEL_DIR)/%.o, $(ASM_SOURCES))
-UEFI_OBJECTS = $(patsubst $(UEFI_DIR)/%.c, $(UEFI_DIR)/%.o, $(UEFI_SOURCES))
+C_OBJECTS    = $(patsubst $(KERNEL_DIR)/%.c, $(KERNEL_BUILD_DIR)/%.o, $(C_SOURCES))
+ASM_OBJECTS  = $(patsubst $(KERNEL_DIR)/%.asm, $(KERNEL_BUILD_DIR)/%.o, $(ASM_SOURCES))
+UEFI_OBJECTS = $(patsubst $(UEFI_DIR)/%.c, $(UEFI_BUILD_DIR)/%.o, $(UEFI_SOURCES))
 
 TARGET  = kernel
 UEFI_TARGET = bootx64.efi
@@ -43,16 +46,19 @@ all: $(TARGET) uefi
 $(TARGET): $(C_OBJECTS) $(ASM_OBJECTS)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-$(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.c
+$(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c
+	@mkdir -p $(KERNEL_BUILD_DIR)
 	$(GCC) $(CFLAGS) $< -o $@
 
-$(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.asm
+$(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.asm
+	@mkdir -p $(KERNEL_BUILD_DIR)
 	$(NASM) -f elf64 $< -o $@
 
 # UEFI 빌드 규칙
 uefi: $(UEFI_TARGET)
 
-$(UEFI_DIR)/%.o: $(UEFI_DIR)/%.c
+$(UEFI_BUILD_DIR)/%.o: $(UEFI_DIR)/%.c
+	@mkdir -p $(UEFI_BUILD_DIR)
 	$(GCC) $(EFI_CFLAGS) -c $< -o $@
 
 bootx64.so: $(UEFI_OBJECTS)
@@ -77,5 +83,4 @@ run-uefi-debug: $(UEFI_TARGET) $(TARGET)
 	qemu-system-x86_64 -bios /usr/share/ovmf/OVMF.fd -drive format=raw,file=fat:rw:iso -s -S
 
 clean:
-	rm -f $(C_OBJECTS) $(UEFI_OBJECTS) $(TARGET) $(UEFI_TARGET) bootx64.so
-	rm -rf iso
+	rm -rf $(BUILD_DIR) $(TARGET) $(UEFI_TARGET) bootx64.so iso
