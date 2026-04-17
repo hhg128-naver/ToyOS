@@ -111,6 +111,7 @@ isr_common:
 
     mov rdi, rsp
     call ExceptionHandler
+    mov rsp, rax     ; 새로운 RSP 적용 (예외 처리 후 태스크 전환 가능성 대비)
 
     pop r15
     pop r14
@@ -150,6 +151,7 @@ irq_common:
 
     mov rdi, rsp
     call InterruptHandler
+    mov rsp, rax     ; 스케줄러가 반환한 새로운 RSP로 전환
 
     pop r15
     pop r14

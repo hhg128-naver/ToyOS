@@ -6,17 +6,25 @@
 #include "vmm.h"
 #include "heap.h"
 #include "pic.h"
+#include "task.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
 
 /* 
  * 그래픽 콘솔을 위한 전역 상태 변수 
- * 커서의 현재 위치를 유지하여 PrintString 호출 시 이어서 출력할 수 있게 합니다.
  */
 static int cursor_x = 0;
 static int cursor_y = 0;
-BootInfo *boot_info_global; // 인터럽트 핸들러 등에서 접근하기 위한 전역 변수
+BootInfo *boot_info_global; 
+static uint32_t current_bg_color = 0x00000033; // 현재 시스템 배경색
+
+/*
+ * Printf: 가변 인자 없이 문자열만 출력하는 임시 함수
+ */
+void Printf(const char *str) {
+    PrintString(boot_info_global, str, 0x00FFFFFF);
+}
 
 /*
  * ClearScreen: 화면 전체를 지정된 색상으로 초기화합니다.
@@ -28,6 +36,7 @@ void ClearScreen(BootInfo *binfo, uint32_t color) {
     }
     cursor_x = 0;
     cursor_y = 0;
+    current_bg_color = color;
 }
 
 /*
@@ -36,8 +45,9 @@ void ClearScreen(BootInfo *binfo, uint32_t color) {
  * @param x, y: 문자가 그려질 좌상단 시작 좌표
  * @param c: 출력할 ASCII 문자
  * @param color: 문자의 색상 (RGB 형식)
+ * @param bg_color: 글자 비트가 0인 곳에 칠할 색상 (기존 잔상 제거용)
  */
-void PutChar(BootInfo *binfo, int x, int y, char c, uint32_t color) {
+void PutChar(BootInfo *binfo, int x, int y, char c, uint32_t color, uint32_t bg_color) {   
     /* 
      * EnglishFont는 1차원 배열이므로, ASCII 코드값(c)에 
      * 한 문자당 크기(16바이트)를 곱하여 해당 문자의 데이터 시작 위치를 찾습니다.
@@ -47,12 +57,10 @@ void PutChar(BootInfo *binfo, int x, int y, char c, uint32_t color) {
 
     for (int dy = 0; dy < 16; dy++) {
         for (int dx = 0; dx < 8; dx++) {
-            /* 
-             * EnglishFont의 데이터 구조가 기존과 동일하게 
-             * 한 바이트의 각 비트가 가로 8픽셀을 나타낸다고 가정합니다.
-             */
             if ((font_ptr[dy] << dx) & 0x80) {
                 vidptr[(y + dy) * binfo->horizontal_resolution + (x + dx)] = color;
+            } else {
+                vidptr[(y + dy) * binfo->horizontal_resolution + (x + dx)] = bg_color;
             }
         }
     }
@@ -68,7 +76,7 @@ void PrintString(BootInfo *binfo, const char *str, uint32_t color) {
             cursor_x = 0;
             cursor_y += 16;
         } else {
-            PutChar(binfo, cursor_x, cursor_y, str[i], color);
+            PutChar(binfo, cursor_x, cursor_y, str[i], color, current_bg_color);
             cursor_x += 8;
         }
 
@@ -78,10 +86,30 @@ void PrintString(BootInfo *binfo, const char *str, uint32_t color) {
             cursor_y += 16;
         }
 
-        /* 세로 화면 끝에 도달하면 다시 상단으로 (간단한 구현을 위해 스크롤 대신 루프) */
+        /* 세로 화면 끝에 도달하면 다시 상단으로 */
         if (cursor_y + 16 > (int)binfo->vertical_resolution) {
             cursor_y = 0;
         }
+    }
+}
+
+/*
+ * TaskB: 멀티태스킹 테스트를 위한 두 번째 태스크
+ */
+void TaskB() {
+    uint64_t count = 0;
+    while(1) {
+        // 화면 오른쪽 하단에 노란색 'B' 출력
+        PutChar(boot_info_global, boot_info_global->horizontal_resolution - 16, 
+                boot_info_global->vertical_resolution - 32, 'B', 0x00FFFF00, current_bg_color);
+        
+        // 실행 중임을 증명하는 카운터 출력 (배경색을 함께 그려서 잔상 제거)
+        if (count % 1000000 == 0) {
+            char val = (count / 1000000 % 10) + '0';
+            PutChar(boot_info_global, boot_info_global->horizontal_resolution - 32, 
+                    boot_info_global->vertical_resolution - 32, val, 0x00FFFF00, current_bg_color);
+        }
+        count++;
     }
 }
 
@@ -134,11 +162,27 @@ void kmain(BootInfo *boot_info)
     /* 6. 인터럽트 및 PIC 초기화 */
     PrintString(boot_info, "Initializing PIC & Enabling Interrupts...\n", 0x00FFFFFF);
     PIC_Init();
+    
+    /* 7. 멀티태스킹 초기화 */
+    InitializeTaskSystem();
+    CreateTask(TaskB);
+
     EnableInterrupts();
-    PrintString(boot_info, "System Ready for Input.\n", 0x0000FF00);
+    PrintString(boot_info, "System Ready with Multitasking.\n", 0x0000FF00);
 
     PrintString(boot_info, "\nToyOS is now running with Full Memory & IRQ Control.\n", 0x00FFFFFF);
     PrintString(boot_info, "Try typing something on your keyboard!\n", 0x0000FFFF);
 
-    while(1);
+    uint64_t countA = 0;
+    while(1) {
+        // 화면 왼쪽 하단에 보라색 'A' 출력
+        PutChar(boot_info_global, 10, boot_info_global->vertical_resolution - 32, 'A', 0x00FF00FF, current_bg_color);
+        
+        // 실행 중임을 증명하는 카운터 출력
+        if (countA % 1000000 == 0) {
+            char val = (countA / 1000000 % 10) + '0';
+            PutChar(boot_info_global, 30, boot_info_global->vertical_resolution - 32, val, 0x00FF00FF, current_bg_color);
+        }
+        countA++;
+    }
 }
