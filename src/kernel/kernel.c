@@ -4,6 +4,7 @@
 #include "idt.h"
 #include "pmm.h"
 #include "vmm.h"
+#include "heap.h"
 
 /* 
  * 그래픽 콘솔을 위한 전역 상태 변수 
@@ -107,15 +108,26 @@ void kmain(BootInfo *boot_info)
     VMM_Init(boot_info);
     PrintString(boot_info, "VMM Setup: OK (4-Level Paging Ready)\n", 0x0000FF00);
 
-    /* 4. 환영 메시지 및 인터럽트 테스트 */
+    /* 4. 커널 힙 초기화 */
+    PrintString(boot_info, "Initializing Kernel Heap...\n", 0x00FFFFFF);
+    Heap_Init(boot_info);
+    PrintString(boot_info, "Heap Setup: OK (2MB Range)\n", 0x0000FF00);
+
+    /* 5. 환영 메시지 및 동적 메모리 테스트 */
     PrintString(boot_info, "\nWelcome to ToyOS! (UEFI 64-bit Mode)\n", 0x00FFFFFF);
     PrintString(boot_info, "------------------------------------\n", 0x0000FF00);
     
-    PrintString(boot_info, "Testing Interrupt (int 3)...\n", 0x00FFFFFF);
-    __asm__ __volatile__("int $3");
-    PrintString(boot_info, "Interrupt Test: OK (Survived!)\n\n", 0x0000FF00);
+    PrintString(boot_info, "Testing kmalloc...\n", 0x00FFFFFF);
+    void* ptr1 = kmalloc(100);
+    void* ptr2 = kmalloc(200);
+    if (ptr1 && ptr2) {
+        PrintString(boot_info, "kmalloc Test: OK (Addresses Allocated)\n", 0x0000FF00);
+    }
+    kfree(ptr1);
+    kfree(ptr2);
+    PrintString(boot_info, "kfree Test: OK (Blocks Freed)\n", 0x0000FF00);
 
-    PrintString(boot_info, "ToyOS is now running with Full Memory Control.\n", 0x00FFFFFF);
+    PrintString(boot_info, "\nToyOS is now running with Full Memory Control.\n", 0x00FFFFFF);
     PrintString(boot_info, "Ready for Next Stage: Kernel Heap & Multitasking.\n", 0x0000FFFF);
 
     while(1);

@@ -1,20 +1,15 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#define NULL ((void*)0)
+#include <stdint.h>
+#include <stddef.h>
 
-/*
- * 표준 정수형 정의: 베어메탈 환경에서는 라이브러리가 없으므로 직접 정의하여
- * 데이터 크기를 명확히 관리합니다.
- */
-typedef unsigned char      uint8_t;
-typedef unsigned short     uint16_t;
-typedef unsigned int       uint32_t;
-typedef unsigned long long uint64_t;
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
 
 /*
  * BootInfo 구조체: UEFI 부트로더에서 커널로 전달되는 시스템 정보입니다.
- * 이 구조체는 부트로더의 정의와 바이너리 수준에서 일치해야 합니다.
  */
 typedef struct {
     uint32_t *framebuffer;           // 프레임버퍼(VRAM)의 시작 물리 주소

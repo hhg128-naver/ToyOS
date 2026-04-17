@@ -29,12 +29,13 @@
   - Page Fault, General Protection Fault 등을 잡기 위한 기본 Exception Handler 작성(화면에 블루스크린/에러 출력).
 - **기대 효과**: 커널의 안정성 확보 및 예기치 않은 오류 발생 시 원인 파악 용이.
 
-### 4단계: 메모리 관리 시스템 (Memory Management)
+### 4단계: 메모리 관리 시스템 (Memory Management) [COMPLETED]
 - **배경**: 1단계에서 전달받은 UEFI 메모리 맵을 토대로 OS 자체의 메모리 관리를 시작합니다.
 - **수행 항목**:
-  - 물리 메모리 할당자(Physical Memory Manager, PMM): Bitmap 등의 구조를 활용하여 4KB Page 단위의 메모리 할당/해제 구현.
-  - 가상 메모리 관리(Paging/VMM): 커널 영역을 상위 주소로 매핑(Higher-half kernel)하거나 Identity 매핑 구조 정비. `CR3` 레지스터 갱신.
-- **기대 효과**: 동적 메모리(`malloc`, `free` 형태) 사용 가능 및 프로세스 분리 기반 마련.
+  - [x] 물리 메모리 할당자(Physical Memory Manager, PMM): Bitmap 등의 구조를 활용하여 4KB Page 단위의 메모리 할당/해제 구현.
+  - [x] 가상 메모리 관리(Paging/VMM): 4단계 페이징 구조 정비 및 Identity 매핑 수행.
+  - [x] 커널 힙(Kernel Heap): `kmalloc`, `kfree` 기능을 제공하는 바이트 단위 할당자 구현.
+- **기대 효과**: 동적 메모리 사용 가능 및 프로세스 분리 기반 마련.
 
 ### 5단계: 인터럽트 컨트롤러(PIC/APIC) 및 키보드 입력
 - **배경**: 현재는 키 입력을 받을 수 없어 상호작용이 불가능합니다.
