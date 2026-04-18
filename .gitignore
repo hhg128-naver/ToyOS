@@ -1,8 +1,9 @@
 # Build artifacts
 *.o
-kernel
-bootx64.so
-bootx64.efi
+/kernel
+/bootx64.so
+/bootx64.efi
+build/
 Dependency.dep
 
 # Temporary directories

@@ -34,7 +34,7 @@ void PMM_Init(BootInfo *binfo) {
     bitmap_size = total_pages / 8;
     if (total_pages % 8 != 0) bitmap_size++;
 
-/* 2. 비트맵을 저장할 적절한 위치 선정 (단순화를 위해 2MB 주소 근처 사용 가능 영역 탐색) */
+    /* 2. 비트맵을 저장할 적절한 위치 선정 (단순화를 위해 2MB 주소 근처 사용 가능 영역 탐색) */
     /* 실제로는 메모리 맵에서 'LoaderData'나 'ConventionalMemory' 중 충분히 큰 곳을 찾아야 함 */
     bitmap = (uint8_t*)0x200000; // 임시: 2MB 위치 (충분한 공간이 있다고 가정)
     
