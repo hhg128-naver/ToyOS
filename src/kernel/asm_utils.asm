@@ -1,5 +1,9 @@
 [BITS 64]
 
+section .data
+global user_rsp_temp
+user_rsp_temp: dq 0
+
 section .text
 global LoadGDT
 global LoadIDT
@@ -9,6 +13,8 @@ global irq32, irq33  ; IRQ 0 (Timer), IRQ 1 (Keyboard)
 global outb, inb
 extern ExceptionHandler
 extern InterruptHandler
+extern current_kernel_stack_top
+extern SyscallHandler
 
 ; LoadGDT(struct GDTPtr *gdt_ptr)
 ; RDI: gdt_ptr 주소
@@ -29,6 +35,12 @@ LoadGDT:
     push rsi            ; Return Address를 다시 스택에 삽입
     retfq               ; Far Return (CS 갱신)
 
+; LoadTSS(uint16_t tss_selector)
+global LoadTSS
+LoadTSS:
+    ltr di              ; Task Register에 TSS 세그먼트 선택자 로드
+    ret
+
 ; LoadIDT(struct IDTPtr *idt_ptr)
 LoadIDT:
     lidt [rdi]
@@ -48,6 +60,24 @@ EnableInterrupts:
 global DisableInterrupts
 DisableInterrupts:
     cli
+    ret
+
+; MSR 읽기/쓰기 함수
+global WriteMSR
+WriteMSR:
+    mov rax, rsi        ; 가닥 64비트 값의 하위 32비트 (RAX)
+    mov rdx, rsi
+    shr rdx, 32         ; 가닥 64비트 값의 상위 32비트 (RDX)
+    mov rcx, rdi        ; MSR 주소 (RCX)
+    wrmsr
+    ret
+
+global ReadMSR
+ReadMSR:
+    mov rcx, rdi
+    rdmsr               ; 결과는 EDX:EAX에 저장됨
+    shl rdx, 32
+    or rax, rdx         ; RAX에 64비트 결과 합침
     ret
 
 ; I/O 포트 제어 함수
@@ -171,3 +201,62 @@ irq_common:
 
     add rsp, 16
     iretq
+
+; SyscallEntry: syscall 명령어 진입점
+global SyscallEntry
+SyscallEntry:
+    ; 1. 유저 RSP 저장 및 커널 스택 전환
+    mov [rel user_rsp_temp], rsp
+    mov rsp, [rel current_kernel_stack_top]
+
+    ; 2. 레지스터 저장 (rcx, r11 포함)
+    push r11            ; RFLAGS 보관
+    push rcx            ; Return RIP 보관
+    
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rbp
+    push rsi
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    ; 3. C 핸들러 호출
+    ; 인자: rdi(rax), rsi(rbx), rdx(rdx), rcx(rsi)
+    mov rdi, rax        ; syscall_num
+    mov rsi, rbx        ; arg1
+    ; mov rdx, rdx      ; arg2 (이미 rdx에 있음)
+    mov rcx, rsi        ; arg3
+    call SyscallHandler
+
+    ; 4. 레지스터 복원
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rbp
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    
+    pop rcx             ; Return RIP 복원
+    pop r11             ; RFLAGS 복원
+
+    ; 5. 유저 RSP 복원 및 리턴
+    mov rsp, [rel user_rsp_temp]
+    sysret

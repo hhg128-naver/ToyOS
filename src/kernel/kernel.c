@@ -9,6 +9,7 @@
 #include "heap.h"
 #include "pic.h"
 #include "task.h"
+#include "syscall.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
@@ -127,10 +128,11 @@ void kmain(BootInfo *boot_info)
     /* 1. 화면 초기화 (진한 파란색 배경) */
     ClearScreen(boot_info, 0x00000033);
 
-    /* 2. 프로세서 환경 설정 (GDT/IDT) */
-    Printf("Initializing System Tables (GDT/IDT)...\n");
+    /* 2. 프로세서 환경 설정 (GDT/IDT/Syscall) */
+    Printf("Initializing System Tables (GDT/IDT/Syscall)...\n");
     InitGDT();
     InitIDT();
+    InitSyscall();
 
     /* 3. 메모리 관리자 초기화 (PMM/VMM) */
     PMM_Init(boot_info);

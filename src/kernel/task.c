@@ -1,6 +1,7 @@
 #include "task.h"
 #include "kernel.h"
 #include "heap.h"
+#include "gdt.h"
 #include <stddef.h>
 
 extern BootInfo *boot_info_global;
@@ -9,12 +10,15 @@ static Task* tasks[MAX_TASKS];
 static int task_count = 0;
 static int current_task_index = 0;
 
+uint64_t current_kernel_stack_top = 0;
+
 void InitializeTaskSystem() {
     // 메인 커널 흐름을 0번 태스크로 등록
     Task* mainTask = (Task*)kmalloc(sizeof(Task));
     mainTask->id = task_count++;
     mainTask->state = TASK_RUNNING;
     mainTask->stack_base = NULL; // 이미 설정된 커널 스택 사용
+    mainTask->kernel_stack_top = 0; // 메인 커널 스택은 별도 관리됨 (보통 부트 시 설정)
     mainTask->rsp = 0;           // Schedule 최초 호출 시 저장됨
     
     for (int i = 0; i < MAX_TASKS; i++) {
@@ -23,6 +27,10 @@ void InitializeTaskSystem() {
     
     tasks[0] = mainTask;
     current_task_index = 0;
+    
+    // 초기 커널 스택 상단 설정 (메인 태스크는 일단 0으로 두거나 현재 RSP 근처로 설정 가능)
+    // 여기서는 일단 0으로 두고, CreateTask로 생성된 태스크부터 본격 관리
+    current_kernel_stack_top = 0;
     
     Printf("Task System Initialized.\n");
 }
@@ -43,6 +51,7 @@ Task* CreateTask(void (*entryPoint)()) {
     
     // 스택 최상단 (64비트 정렬)
     uint64_t stack_top = (uint64_t)stack + TASK_STACK_SIZE;
+    newTask->kernel_stack_top = stack_top;
     
     // Context 구조체 위치 잡기
     Context* ctx = (Context*)(stack_top - sizeof(Context));
@@ -71,7 +80,7 @@ Task* CreateTask(void (*entryPoint)()) {
 }
 
 uint64_t Schedule(uint64_t current_rsp) {
-    // 시각적 피드백: 스케줄러가 호출될 때마다 화면 왼쪽 상단에 'S' 출력
+    // 시각적 피드백
     static int sched_count = 0;
     char spin[] = {'|', '/', '-', '\\'};
     PutChar(boot_info_global, boot_info_global->horizontal_resolution - 16, 0, spin[(sched_count++ / 10) % 4], 0x00FF0000, 0x00000033);
@@ -85,6 +94,12 @@ uint64_t Schedule(uint64_t current_rsp) {
     do {
         current_task_index = (current_task_index + 1) % task_count;
     } while (tasks[current_task_index]->state == TASK_SLEEP);
+
+    // 새로운 태스크의 정보를 전역 변수 및 TSS에 반영
+    current_kernel_stack_top = tasks[current_task_index]->kernel_stack_top;
+    if (current_kernel_stack_top != 0) {
+        SetTSSStack(current_kernel_stack_top);
+    }
 
     // 새로운 태스크의 RSP 반환
     return tasks[current_task_index]->rsp;

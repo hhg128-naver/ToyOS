@@ -25,7 +25,10 @@ typedef struct Task {
     uint64_t id;           // 태스크 식별자
     TaskState state;       // 태스크 상태
     void* stack_base;      // 할당된 스택 메모리 주소
+    uint64_t kernel_stack_top; // 커널 스택 최상단 주소
 } Task;
+
+extern uint64_t current_kernel_stack_top;
 
 void InitializeTaskSystem();
 Task* CreateTask(void (*entryPoint)());
