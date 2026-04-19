@@ -3,6 +3,8 @@
 #include "heap.h"
 #include <stddef.h>
 
+extern BootInfo *boot_info_global;
+
 static Task* tasks[MAX_TASKS];
 static int task_count = 0;
 static int current_task_index = 0;
@@ -69,6 +71,11 @@ Task* CreateTask(void (*entryPoint)()) {
 }
 
 uint64_t Schedule(uint64_t current_rsp) {
+    // 시각적 피드백: 스케줄러가 호출될 때마다 화면 왼쪽 상단에 'S' 출력
+    static int sched_count = 0;
+    char spin[] = {'|', '/', '-', '\\'};
+    PutChar(boot_info_global, boot_info_global->horizontal_resolution - 16, 0, spin[(sched_count++ / 10) % 4], 0x00FF0000, 0x00000033);
+
     if (task_count <= 1) return current_rsp;
 
     // 현재 실행 중인 태스크의 RSP 저장

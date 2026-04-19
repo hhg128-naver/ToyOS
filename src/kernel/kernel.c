@@ -166,7 +166,7 @@ void kmain(BootInfo *boot_info)
     Printf("System Ready with Multitasking.\n");
 
     Printf("\nToyOS is now running with Newlib support.\n");
-    Printf("Try typing something on your keyboard!\n");
+    Printf("Entering Task A loop...\n");
 
     uint64_t countA = 0;
     while(1) {
