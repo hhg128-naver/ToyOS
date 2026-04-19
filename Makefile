@@ -1,8 +1,19 @@
-# 컴파일러 및 링커 정의
-NASM    = nasm
-GCC     = gcc
-LD      = ld
-OBJCOPY = objcopy
+# 크로스 컴파일러 경로 정의
+TOOLCHAIN_DIR = $(shell pwd)/toolchain/install
+CROSS_GCC     = $(TOOLCHAIN_DIR)/bin/x86_64-elf-gcc
+CROSS_LD      = $(TOOLCHAIN_DIR)/bin/x86_64-elf-gcc
+CROSS_OBJCOPY = $(TOOLCHAIN_DIR)/bin/x86_64-elf-objcopy
+NASM          = nasm
+
+# 호스트 GCC (UEFI 빌드용)
+HOST_GCC      = gcc
+HOST_LD       = ld
+HOST_OBJCOPY  = objcopy
+
+# 라이브러리 파일 경로 직접 정의
+LIBC_A     = $(TOOLCHAIN_DIR)/x86_64-elf/lib/libc.a
+LIBM_A     = $(TOOLCHAIN_DIR)/x86_64-elf/lib/libm.a
+LIBGCC_A   = $(TOOLCHAIN_DIR)/lib/gcc/x86_64-elf/13.2.0/libgcc.a
 
 # 디렉토리 정의
 SRC_DIR = src
@@ -19,11 +30,12 @@ EFI_LIB     = /usr/lib
 EFI_CRT0    = $(EFI_LIB)/crt0-efi-x86_64.o
 EFI_LDS     = $(EFI_LIB)/elf_x86_64_efi.lds
 
-# 컴파일 플래그 (64-bit Kernel) - boot.asm 제외
-CFLAGS    = -m64 -c -g -I$(KERNEL_DIR) -fno-stack-protector -mno-red-zone -fno-pic -ffreestanding -nostdlib
-LDFLAGS   = -m elf_x86_64 -T $(KERNEL_DIR)/link.ld -nostdlib
+# 컴파일 플래그 (64-bit Kernel)
+NEWLIB_INC = $(TOOLCHAIN_DIR)/x86_64-elf/include
+CFLAGS    = -m64 -c -g -I$(KERNEL_DIR) -I$(NEWLIB_INC) -fno-stack-protector -mno-red-zone -fno-pic -ffreestanding
+LDFLAGS   = -m64 -g -T $(KERNEL_DIR)/link.ld -nostdlib
 
-# 컴파일 플래그 (UEFI)
+# 컴파일 플래그 (UEFI) - 호스트 GCC용
 EFI_CFLAGS = -g -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
              -I$(EFI_INC) -I$(EFI_INC)/x86_64 -I$(EFI_INC)/protocol
 EFI_LDFLAGS = -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic \
@@ -44,11 +56,11 @@ UEFI_TARGET = bootx64.efi
 all: $(TARGET) uefi
 
 $(TARGET): $(C_OBJECTS) $(ASM_OBJECTS)
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(CROSS_LD) $(LDFLAGS) -o $@ $^ $(LIBC_A) $(LIBGCC_A)
 
 $(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c
 	@mkdir -p $(KERNEL_BUILD_DIR)
-	$(GCC) $(CFLAGS) $< -o $@
+	$(CROSS_GCC) $(CFLAGS) $< -o $@
 
 $(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.asm
 	@mkdir -p $(KERNEL_BUILD_DIR)
@@ -59,13 +71,13 @@ uefi: $(UEFI_TARGET)
 
 $(UEFI_BUILD_DIR)/%.o: $(UEFI_DIR)/%.c
 	@mkdir -p $(UEFI_BUILD_DIR)
-	$(GCC) $(EFI_CFLAGS) -c $< -o $@
+	$(HOST_GCC) $(EFI_CFLAGS) -c $< -o $@
 
 bootx64.so: $(UEFI_OBJECTS)
-	$(LD) $(EFI_LDFLAGS) $^ -o $@ -lefi -lgnuefi
+	$(HOST_LD) $(EFI_LDFLAGS) $^ -o $@ -lefi -lgnuefi
 
 $(UEFI_TARGET): bootx64.so
-	$(OBJCOPY) -j .text -j .sdata -j .data -j .dynamic -j .dynsym \
+	$(HOST_OBJCOPY) -j .text -j .sdata -j .data -j .dynamic -j .dynsym \
 	           -j .rel -j .rela -j .reloc --target=efi-app-x86_64 $^ $@
 
 .PHONY: all clean run-uefi

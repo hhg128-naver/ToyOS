@@ -17,3 +17,6 @@ iso/
 # OS specific
 .DS_Store
 Thumbs.db
+
+# toolchain
+toolchain/

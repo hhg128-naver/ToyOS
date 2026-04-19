@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include "kernel.h"
 #include "font.h"
 #include "gdt.h"
@@ -21,6 +23,8 @@ static uint32_t current_bg_color = 0x00000033; // 현재 시스템 배경색
 
 /*
  * Printf: 가변 인자 없이 문자열만 출력하는 임시 함수
+ * (이제 newlib의 printf가 내부적으로 syscalls.c의 _write를 호출하므로,
+ *  기존 Printf 호출부도 점진적으로 교체 가능합니다.)
  */
 void Printf(const char *str) {
     PrintString(boot_info_global, str, 0x00FFFFFF);
@@ -124,43 +128,34 @@ void kmain(BootInfo *boot_info)
     ClearScreen(boot_info, 0x00000033);
 
     /* 2. 프로세서 환경 설정 (GDT/IDT) */
-    PrintString(boot_info, "Initializing System Tables (GDT/IDT)...\n", 0x00FFFFFF);
+    Printf("Initializing System Tables (GDT/IDT)...\n");
     InitGDT();
-    PrintString(boot_info, "GDT Setup: OK (Kernel Code: 0x08, Data: 0x10)\n", 0x0000FF00);
-    
     InitIDT();
-    PrintString(boot_info, "System Tables Setup: OK\n", 0x0000FF00);
 
     /* 3. 메모리 관리자 초기화 (PMM/VMM) */
-    PrintString(boot_info, "Initializing Physical Memory Manager (PMM)...\n", 0x00FFFFFF);
     PMM_Init(boot_info);
-    PrintString(boot_info, "PMM Setup: OK\n", 0x0000FF00);
-
-    PrintString(boot_info, "Initializing Virtual Memory Manager (VMM)...\n", 0x00FFFFFF);
     VMM_Init(boot_info);
-    PrintString(boot_info, "VMM Setup: OK (4-Level Paging Ready)\n", 0x0000FF00);
 
-    /* 4. 커널 힙 초기화 */
-    PrintString(boot_info, "Initializing Kernel Heap...\n", 0x00FFFFFF);
+    /* 4. 커널 힙 초기화 (기존 ToyOS 전용 힙) */
     Heap_Init(boot_info);
-    PrintString(boot_info, "Heap Setup: OK (2MB Range)\n", 0x0000FF00);
 
-    /* 5. 환영 메시지 및 동적 메모리 테스트 */
-    PrintString(boot_info, "\nWelcome to ToyOS! (UEFI 64-bit Mode)\n", 0x00FFFFFF);
-    PrintString(boot_info, "------------------------------------\n", 0x0000FF00);
+    /* 5. 환영 메시지 및 Newlib 테스트 */
+    Printf("\nWelcome to ToyOS! (UEFI 64-bit Mode)\n");
+    Printf("------------------------------------\n");
     
-    PrintString(boot_info, "Testing kmalloc...\n", 0x00FFFFFF);
-    void* ptr1 = kmalloc(100);
-    void* ptr2 = kmalloc(200);
-    if (ptr1 && ptr2) {
-        PrintString(boot_info, "kmalloc Test: OK (Addresses Allocated)\n", 0x0000FF00);
+    // Newlib printf 테스트
+    printf("Newlib printf Test: Success! [Value: %d, Hex: 0x%x]\n", 2026, 0xABCDE);
+
+    // Newlib malloc 테스트
+    void* nptr = malloc(1024);
+    if (nptr) {
+        printf("Newlib malloc Test: OK (Address: %p)\n", nptr);
+        free(nptr);
+    } else {
+        printf("Newlib malloc Test: FAILED\n");
     }
-    kfree(ptr1);
-    kfree(ptr2);
-    PrintString(boot_info, "kfree Test: OK (Blocks Freed)\n", 0x0000FF00);
 
     /* 6. 인터럽트 및 PIC 초기화 */
-    PrintString(boot_info, "Initializing PIC & Enabling Interrupts...\n", 0x00FFFFFF);
     PIC_Init();
     
     /* 7. 멀티태스킹 초기화 */
@@ -168,17 +163,15 @@ void kmain(BootInfo *boot_info)
     CreateTask(TaskB);
 
     EnableInterrupts();
-    PrintString(boot_info, "System Ready with Multitasking.\n", 0x0000FF00);
+    Printf("System Ready with Multitasking.\n");
 
-    PrintString(boot_info, "\nToyOS is now running with Full Memory & IRQ Control.\n", 0x00FFFFFF);
-    PrintString(boot_info, "Try typing something on your keyboard!\n", 0x0000FFFF);
+    Printf("\nToyOS is now running with Newlib support.\n");
+    Printf("Try typing something on your keyboard!\n");
 
     uint64_t countA = 0;
     while(1) {
-        // 화면 왼쪽 하단에 보라색 'A' 출력
         PutChar(boot_info_global, 10, boot_info_global->vertical_resolution - 32, 'A', 0x00FF00FF, current_bg_color);
         
-        // 실행 중임을 증명하는 카운터 출력
         if (countA % 1000000 == 0) {
             char val = (countA / 1000000 % 10) + '0';
             PutChar(boot_info_global, 30, boot_info_global->vertical_resolution - 32, val, 0x00FF00FF, current_bg_color);
