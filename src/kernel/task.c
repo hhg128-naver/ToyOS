@@ -2,6 +2,7 @@
 #include "kernel.h"
 #include "heap.h"
 #include "gdt.h"
+#include <stdio.h>
 #include <stddef.h>
 
 extern BootInfo *boot_info_global;
@@ -79,7 +80,7 @@ Task* CreateTask(void (*entryPoint)()) {
     return newTask;
 }
 
-Task* CreateUserTask(void (*entryPoint)()) {
+Task* CreateUserTask(void (*entryPoint)(), int arg) {
     if (task_count >= MAX_TASKS) {
         Printf("Error: Max tasks reached.\n");
         return NULL;
@@ -118,7 +119,9 @@ Task* CreateUserTask(void (*entryPoint)()) {
     
     // 범용 레지스터 초기화
     ctx->rax = ctx->rbx = ctx->rcx = ctx->rdx = 0;
-    ctx->rsi = ctx->rdi = ctx->rbp = 0;
+    ctx->rsi = 0;
+    ctx->rdi = (uint64_t)arg; // 첫 번째 인자 전달 (x86_64 calling convention)
+    ctx->rbp = 0;
     ctx->r8 = ctx->r9 = ctx->r10 = ctx->r11 = 0;
     ctx->r12 = ctx->r13 = ctx->r14 = ctx->r15 = 0;
     ctx->interrupt_number = 0;
@@ -127,7 +130,7 @@ Task* CreateUserTask(void (*entryPoint)()) {
     newTask->rsp = (uint64_t)ctx;
     tasks[task_count++] = newTask;
     
-    Printf("Created New User Task.\n");
+    printf("Created New User Task with arg: %d\n", arg);
     
     return newTask;
 }

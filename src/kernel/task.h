@@ -32,7 +32,7 @@ extern uint64_t current_kernel_stack_top;
 
 void InitializeTaskSystem();
 Task* CreateTask(void (*entryPoint)());
-Task* CreateUserTask(void (*entryPoint)());
+Task* CreateUserTask(void (*entryPoint)(), int arg);
 uint64_t Schedule(uint64_t current_rsp);
 
 #endif
