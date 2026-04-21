@@ -118,6 +118,29 @@ void TaskB() {
     }
 }
 
+/**
+ * UserMain: 실제 Ring 3 (User Mode)에서 실행될 테스트 함수
+ */
+void UserMain() {
+    const char* msg = "Hello from User Mode via Syscall!\n";
+
+    /* 인라인 어셈블리를 이용한 syscall 호출 
+     * RAX: 1 (SYSCALL_WRITE), RDI: 메시지 주소
+     */
+    while(1) {
+        asm volatile (
+            "mov $1, %%rax \n"
+            "mov %0, %%rdi \n"
+            "syscall"
+            : : "r"(msg) : "rax", "rdi", "rcx", "r11"
+        );
+
+        /* 바쁜 대기 (시스템 콜 체감용) */
+        for(volatile int i=0; i<100000000; i++);
+    }
+}
+
+
 /*
  * kmain: 커널 메인 로직
  */
@@ -163,6 +186,10 @@ void kmain(BootInfo *boot_info)
     /* 7. 멀티태스킹 초기화 */
     InitializeTaskSystem();
     CreateTask(TaskB);
+    
+    /* 8. 유저 모드 테스트 태스크 생성 (7단계 핵심) */
+    printf("UserMain Address: %p\n", (void*)UserMain);
+    CreateUserTask(UserMain);
 
     EnableInterrupts();
     Printf("System Ready with Multitasking.\n");

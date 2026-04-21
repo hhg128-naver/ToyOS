@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "kernel.h"
 #include "keyboard.h"
 #include "task.h"
@@ -32,6 +33,17 @@ uint64_t ExceptionHandler(Context *regs) {
     }
     
     Printf("\n[CPU EXCEPTION OCCURRED]\n");
+    if (regs->interrupt_number == 14) {
+        Printf("Type: PAGE FAULT (#PF)\n");
+    } else if (regs->interrupt_number == 13) {
+        Printf("Type: GENERAL PROTECTION FAULT (#GP)\n");
+    } else if (regs->interrupt_number == 6) {
+        Printf("Type: INVALID OPCODE (#UD)\n");
+    }
+
+    // Newlib의 printf가 연동되어 있으므로 이를 활용해 상세 정보를 출력합니다.
+    printf("Exception No: %d, Error Code: 0x%x\n", (int)regs->interrupt_number, (int)regs->error_code);
+    printf("Faulting RIP: 0x%p, RSP: 0x%p\n", (void*)regs->rip, (void*)regs->rsp);
 
     /* 예외 발생 시 일단 현재 태스크 정지 (무한 루프) */
     while(1);

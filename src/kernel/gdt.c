@@ -1,7 +1,7 @@
 #include "gdt.h"
 
 /* GDT 엔트리 배열 (최소한의 구성 -> 확장) 
- * 0: NULL, 1: KCode, 2: KData, 3: UCode, 4: UData, 5-6: TSS
+ * 0: NULL, 1: KCode, 2: KData, 3: UData, 4: UCode, 5-6: TSS
  */
 static struct GDTEntry gdt[7];
 static struct GDTPtr gdt_ptr;
@@ -42,31 +42,23 @@ void InitGDT() {
     /* NULL Descriptor */
     SetGDTEntry(0, 0, 0, 0, 0);
 
-    /* Kernel Code Segment (64-bit) - Index 1 (0x08)
-     * Access: 0x9A (Present, Ring 0, Code, Readable)
-     * Granularity: 0xA0 (64-bit mode flag set)
-     */
+    /* Kernel Code Segment (64-bit) - Index 1 (0x08) */
     SetGDTEntry(1, 0, 0xFFFFFFFF, 0x9A, 0xA0);
 
-    /* Kernel Data Segment (64-bit) - Index 2 (0x10)
-     * Access: 0x92 (Present, Ring 0, Data, Writable)
-     * Granularity: 0xC0 (32-bit/64-bit common flags)
-     */
+    /* Kernel Data Segment (64-bit) - Index 2 (0x10) */
     SetGDTEntry(2, 0, 0xFFFFFFFF, 0x92, 0xC0);
 
     /* User Data Segment (64-bit) - Index 3 (0x18 | 3 = 0x1B)
-     * Access: 0xF2 (Present, Ring 3, Data, Writable)
+     * Access: 0xF3 (Present, Ring 3, Data, Writable, Accessed)
      */
-    SetGDTEntry(3, 0, 0xFFFFFFFF, 0xF2, 0xC0);
+    SetGDTEntry(3, 0, 0xFFFFFFFF, 0xF3, 0xC0);
 
     /* User Code Segment (64-bit) - Index 4 (0x20 | 3 = 0x23)
-     * Access: 0xFA (Present, Ring 3, Code, Readable)
+     * Access: 0xFB (Present, Ring 3, Code, Readable, Accessed)
      */
-    SetGDTEntry(4, 0, 0xFFFFFFFF, 0xFA, 0xA0);
+    SetGDTEntry(4, 0, 0xFFFFFFFF, 0xFB, 0xA0);
 
-    /* TSS Descriptor - Index 5 (0x28)
-     * Access: 0x89 (Present, Executable, Accessed)
-     */
+    /* TSS Descriptor - Index 5 (0x28) */
     for (int i = 0; i < sizeof(struct TSS); i++) ((char*)&tss)[i] = 0;
     tss.iopb_offset = sizeof(struct TSS);
     SetTSSEntry(5, (uint64_t)&tss, sizeof(struct TSS) - 1, 0x89);
@@ -75,9 +67,9 @@ void InitGDT() {
     gdt_ptr.limit = (sizeof(struct GDTEntry) * 7) - 1;
     gdt_ptr.base  = (uint64_t)&gdt;
 
-    /* GDT 로드 (어셈블리 함수 호출) */
+    /* GDT 로드 */
     LoadGDT(&gdt_ptr);
 
     /* TSS 로드 */
-    LoadTSS(GDT_TSS);
+    LoadTSS(0x28);
 }

@@ -205,14 +205,18 @@ irq_common:
 ; SyscallEntry: syscall 명령어 진입점
 global SyscallEntry
 SyscallEntry:
-    ; 1. 유저 RSP 저장 및 커널 스택 전환
+    ; 1. 유저 RSP를 잠시 보관하고 커널 스택으로 전환
     mov [rel user_rsp_temp], rsp
     mov rsp, [rel current_kernel_stack_top]
 
-    ; 2. 레지스터 저장 (rcx, r11 포함)
-    push r11            ; RFLAGS 보관
-    push rcx            ; Return RIP 보관
-    
+    ; 2. 유저 컨텍스트 보존 (iretq 프레임 구성)
+    push qword 0x1B     ; User Data Segment (Index 3, RPL 3)
+    push qword [rel user_rsp_temp]
+    push r11            ; User RFLAGS (syscall이 r11에 보관함)
+    push qword 0x23     ; User Code Segment (Index 4, RPL 3)
+    push rcx            ; User RIP (syscall이 rcx에 보관함)
+
+    ; 3. 범용 레지스터 저장
     push rax
     push rbx
     push rcx
@@ -229,15 +233,19 @@ SyscallEntry:
     push r14
     push r15
 
-    ; 3. C 핸들러 호출
-    ; 인자: rdi(rax), rsi(rbx), rdx(rdx), rcx(rsi)
-    mov rdi, rax        ; syscall_num
-    mov rsi, rbx        ; arg1
-    ; mov rdx, rdx      ; arg2 (이미 rdx에 있음)
-    mov rcx, rsi        ; arg3
+    ; 4. C 핸들러 호출
+    mov r9,  r8         
+    mov r8,  r10        
+    mov rcx, rdx        
+    mov rdx, rsi        
+    mov rsi, rdi        
+    mov rdi, rax        
     call SyscallHandler
 
-    ; 4. 레지스터 복원
+    ; 5. 결과값(RAX) 반영
+    mov [rsp + 112], rax
+
+    ; 6. 범용 레지스터 복원
     pop r15
     pop r14
     pop r13
@@ -253,10 +261,6 @@ SyscallEntry:
     pop rcx
     pop rbx
     pop rax
-    
-    pop rcx             ; Return RIP 복원
-    pop r11             ; RFLAGS 복원
 
-    ; 5. 유저 RSP 복원 및 리턴
-    mov rsp, [rel user_rsp_temp]
-    sysret
+    ; 7. iretq를 통한 복귀 (sysret보다 안전함)
+    iretq
