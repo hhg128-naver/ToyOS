@@ -56,8 +56,22 @@ uint64_t ExceptionHandler(Context *regs) {
 uint64_t InterruptHandler(Context *regs) {
     uint64_t irq = regs->interrupt_number;
     uint64_t next_rsp = (uint64_t)regs;
+    static uint64_t system_ticks = 0;
 
     if (irq == 32) {
+        // 타이머 인터럽트: 틱 증가
+        system_ticks++;
+
+        // 1초마다(100Hz 기준 100틱) 시각적 피드백 출력
+        if (system_ticks % 100 == 0) {
+            // kernel.h에 선언된 PutChar 사용
+            extern BootInfo *boot_info_global;
+            char sec_char = ((system_ticks / 100) % 10) + '0';
+            PutChar(boot_info_global, 50, 10, 'T', 0x0000FF00, 0x00000033);
+            PutChar(boot_info_global, 60, 10, ':', 0x0000FF00, 0x00000033);
+            PutChar(boot_info_global, 70, 10, sec_char, 0x0000FF00, 0x00000033);
+        }
+
         // 타이머 인터럽트: 스케줄링 수행
         next_rsp = Schedule((uint64_t)regs);
     } else if (irq == 33) {

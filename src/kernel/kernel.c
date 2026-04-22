@@ -8,6 +8,7 @@
 #include "vmm.h"
 #include "heap.h"
 #include "pic.h"
+#include "timer.h"
 #include "task.h"
 #include "syscall.h"
 
@@ -168,8 +169,8 @@ void kmain(BootInfo *boot_info)
     Heap_Init(boot_info);
 
     /* 5. 환영 메시지 및 Newlib 테스트 */
-    Printf("\nWelcome to ToyOS! (UEFI 64-bit Mode)\n");
-    Printf("------------------------------------\n");
+    printf("\nWelcome to ToyOS! (UEFI 64-bit Mode)\n");
+    printf("------------------------------------\n");
     
     // Newlib printf 테스트
     printf("Newlib printf Test: Success! [Value: %d, Hex: 0x%x]\n", 2026, 0xABCDE);
@@ -185,6 +186,7 @@ void kmain(BootInfo *boot_info)
 
     /* 6. 인터럽트 및 PIC 초기화 */
     PIC_Init();
+    PIT_Init(100);
     
     /* 7. 멀티태스킹 초기화 */
     InitializeTaskSystem();
@@ -195,10 +197,10 @@ void kmain(BootInfo *boot_info)
     CreateUserTask(UserMain, 123);
 
     EnableInterrupts();
-    Printf("System Ready with Multitasking.\n");
+    printf("System Ready with Multitasking.\n");
 
-    Printf("\nToyOS is now running with Newlib support.\n");
-    Printf("Entering Task A loop...\n");
+    printf("\nToyOS is now running with Newlib support.\n");
+    printf("Entering Task A loop...\n");
 
     uint64_t countA = 0;
     while(1) {
