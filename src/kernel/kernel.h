@@ -51,4 +51,24 @@ void ClearScreen(BootInfo *binfo, uint32_t color);
 /* Printf: 가변 인자 없이 문자열만 출력하는 임시 함수 */
 void Printf(const char *str);
 
+/* --- 인터럽트 제어 --- */
+void EnableInterrupts(void);
+void DisableInterrupts(void);
+uint64_t GetRFLAGS(void);
+
+// RFLAGS의 IF(Interrupt Flag) 비트는 9번 비트 (0x200)
+#define RFLAGS_IF 0x200
+
+static inline uint64_t SaveAndDisableInterrupts(void) {
+    uint64_t rflags = GetRFLAGS();
+    DisableInterrupts();
+    return rflags;
+}
+
+static inline void RestoreInterrupts(uint64_t rflags) {
+    if (rflags & RFLAGS_IF) {
+        EnableInterrupts();
+    }
+}
+
 #endif

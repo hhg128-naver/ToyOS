@@ -62,6 +62,12 @@ DisableInterrupts:
     cli
     ret
 
+global GetRFLAGS
+GetRFLAGS:
+    pushfq
+    pop rax
+    ret
+
 ; MSR 읽기/쓰기 함수
 global WriteMSR
 WriteMSR:

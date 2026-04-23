@@ -37,8 +37,11 @@ void InitializeTaskSystem() {
 }
 
 Task* CreateTask(void (*entryPoint)()) {
+    uint64_t flags = SaveAndDisableInterrupts();
+
     if (task_count >= MAX_TASKS) {
         Printf("Error: Max tasks reached.\n");
+        RestoreInterrupts(flags);
         return NULL;
     }
 
@@ -75,14 +78,18 @@ Task* CreateTask(void (*entryPoint)()) {
     newTask->rsp = (uint64_t)ctx;
     tasks[task_count++] = newTask;
     
+    RestoreInterrupts(flags);
     Printf("Created New Task.\n");
     
     return newTask;
 }
 
 Task* CreateUserTask(void (*entryPoint)(), int arg) {
+    uint64_t flags = SaveAndDisableInterrupts();
+
     if (task_count >= MAX_TASKS) {
         Printf("Error: Max tasks reached.\n");
+        RestoreInterrupts(flags);
         return NULL;
     }
 
@@ -130,18 +137,25 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     newTask->rsp = (uint64_t)ctx;
     tasks[task_count++] = newTask;
     
+    RestoreInterrupts(flags);
     printf("Created New User Task with arg: %d\n", arg);
     
     return newTask;
 }
 
 uint64_t Schedule(uint64_t current_rsp) {
+    // 스케줄러 핵심 로직 보호
+    uint64_t flags = SaveAndDisableInterrupts();
+
     // 시각적 피드백
     static int sched_count = 0;
     char spin[] = {'|', '/', '-', '\\'};
     PutChar(boot_info_global, boot_info_global->horizontal_resolution - 16, 0, spin[(sched_count++ / 10) % 4], 0x00FF0000, 0x00000033);
 
-    if (task_count <= 1) return current_rsp;
+    if (task_count <= 1) {
+        RestoreInterrupts(flags);
+        return current_rsp;
+    }
 
     // 현재 실행 중인 태스크의 RSP 저장
     tasks[current_task_index]->rsp = current_rsp;
@@ -157,6 +171,19 @@ uint64_t Schedule(uint64_t current_rsp) {
         SetTSSStack(current_kernel_stack_top);
     }
 
-    // 새로운 태스크의 RSP 반환
-    return tasks[current_task_index]->rsp;
+    uint64_t next_rsp = tasks[current_task_index]->rsp;
+    
+    // 주의: 여기서 RestoreInterrupts를 호출해도, 
+    // 어차피 반환된 RSP로 스택이 바뀌고 iretq가 실행되면 
+    // 새로운 태스크의 RFLAGS가 적용되므로 큰 영향은 없음.
+    // 하지만 논리적 일관성을 위해 호출.
+    RestoreInterrupts(flags);
+
+    return next_rsp;
+}
+
+void Yield() {
+    // 자발적 양보를 위해 타이머 인터럽트(32번)를 소프트웨어적으로 발생시킴
+    // 또는 별도의 스케줄링 진입점을 사용할 수 있으나, 현재는 인터럽트 프레임 구조를 활용하기 위해 int $32 사용
+    __asm__ volatile("int $32");
 }
