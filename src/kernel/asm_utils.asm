@@ -68,6 +68,32 @@ GetRFLAGS:
     pop rax
     ret
 
+; 제어 레지스터 조작 함수
+global ReadCR0
+ReadCR0:
+    mov rax, cr0
+    ret
+
+global WriteCR0
+WriteCR0:
+    mov cr0, rdi
+    ret
+
+global ReadCR4
+ReadCR4:
+    mov rax, cr4
+    ret
+
+global WriteCR4
+WriteCR4:
+    mov cr4, rdi
+    ret
+
+global InitFPU
+InitFPU:
+    finit
+    ret
+
 ; MSR 읽기/쓰기 함수
 global WriteMSR
 WriteMSR:

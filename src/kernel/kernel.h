@@ -56,6 +56,13 @@ void EnableInterrupts(void);
 void DisableInterrupts(void);
 uint64_t GetRFLAGS(void);
 
+/* --- 제어 레지스터 및 FPU --- */
+uint64_t ReadCR0(void);
+void WriteCR0(uint64_t cr0);
+uint64_t ReadCR4(void);
+void WriteCR4(uint64_t cr4);
+void InitFPU(void);
+
 // RFLAGS의 IF(Interrupt Flag) 비트는 9번 비트 (0x200)
 #define RFLAGS_IF 0x200
 

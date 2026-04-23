@@ -146,6 +146,46 @@ void UserMain(int arg) {
 
 
 /*
+ * InitializeFPU: FPU와 SSE 유닛을 활성화합니다.
+ */
+void InitializeFPU() {
+    // 1. CR0 레지스터 설정
+    uint64_t cr0 = ReadCR0();
+    cr0 &= ~(1 << 2); // EM (Emulation) bit 끄기
+    cr0 |= (1 << 1);  // MP (Monitor Co-processor) bit 켜기
+    WriteCR0(cr0);
+
+    // 2. CR4 레지스터 설정 (SSE 활성화 포함)
+    uint64_t cr4 = ReadCR4();
+    cr4 |= (1 << 9);  // OSFXSR: FXSAVE/FXRSTOR 지원 및 SSE 활성화
+    cr4 |= (1 << 10); // OSXMMEXCPT: 미마스크 SSE 예외 지원
+    WriteCR4(cr4);
+
+    // 3. FPU 초기화 (finit)
+    InitFPU();
+
+    Printf("FPU and SSE Initialized.\n");
+}
+
+/*
+ * TestFPU: 부동소수점 연산 능력을 테스트합니다.
+ */
+void TestFPU(const char* context) {
+    double a = 1.2345;
+    double b = 2.7655;
+    double res = a + b; // 기대값: 4.0
+
+    // %f 지원 여부가 불확실하므로 수동으로 출력
+    int int_part = (int)res;
+    int frac_part = (int)((res - int_part) * 10000);
+    
+    printf("[%s] FPU Test: 1.2345 + 2.7655 = %d.%04d\n", context, int_part, frac_part);
+    
+    // %f 지원 여부 테스트 (newlib 설정에 따라 다름)
+    // printf("[%s] FPU Test (%%f): %f\n", context, res);
+}
+
+/*
  * kmain: 커널 메인 로직
  */
 void kmain(BootInfo *boot_info)
@@ -159,6 +199,7 @@ void kmain(BootInfo *boot_info)
     Printf("Initializing System Tables (GDT/IDT/Syscall)...\n");
     InitGDT();
     InitIDT();
+    InitializeFPU(); // FPU 활성화
     InitSyscall();
 
     /* 3. 메모리 관리자 초기화 (PMM/VMM) */
@@ -171,6 +212,9 @@ void kmain(BootInfo *boot_info)
     /* 5. 환영 메시지 및 Newlib 테스트 */
     printf("\nWelcome to ToyOS! (UEFI 64-bit Mode)\n");
     printf("------------------------------------\n");
+    
+    // FPU 커널 모드 테스트
+    TestFPU("Kernel");
     
     // Newlib printf 테스트
     printf("Newlib printf Test: Success! [Value: %d, Hex: 0x%x]\n", 2026, 0xABCDE);
