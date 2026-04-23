@@ -149,14 +149,19 @@ void UserMain(int arg) {
  * InitializeFPU: FPU와 SSE 유닛을 활성화합니다.
  */
 void InitializeFPU() {
+    // 초기 상태 확인 (사용자 확인용)
+    uint64_t initial_cr0 = ReadCR0();
+    uint64_t initial_cr4 = ReadCR4();
+    printf("Initial Processor State - CR0: %p, CR4: %p\n", (void*)initial_cr0, (void*)initial_cr4);
+
     // 1. CR0 레지스터 설정
-    uint64_t cr0 = ReadCR0();
+    uint64_t cr0 = initial_cr0;
     cr0 &= ~(1 << 2); // EM (Emulation) bit 끄기
     cr0 |= (1 << 1);  // MP (Monitor Co-processor) bit 켜기
     WriteCR0(cr0);
 
     // 2. CR4 레지스터 설정 (SSE 활성화 포함)
-    uint64_t cr4 = ReadCR4();
+    uint64_t cr4 = initial_cr4;
     cr4 |= (1 << 9);  // OSFXSR: FXSAVE/FXRSTOR 지원 및 SSE 활성화
     cr4 |= (1 << 10); // OSXMMEXCPT: 미마스크 SSE 예외 지원
     WriteCR4(cr4);
@@ -199,7 +204,6 @@ void kmain(BootInfo *boot_info)
     Printf("Initializing System Tables (GDT/IDT/Syscall)...\n");
     InitGDT();
     InitIDT();
-    InitializeFPU(); // FPU 활성화
     InitSyscall();
 
     /* 3. 메모리 관리자 초기화 (PMM/VMM) */
@@ -213,6 +217,7 @@ void kmain(BootInfo *boot_info)
     printf("\nWelcome to ToyOS! (UEFI 64-bit Mode)\n");
     printf("------------------------------------\n");
     
+    InitializeFPU(); // FPU 활성화
     // FPU 커널 모드 테스트
     TestFPU("Kernel");
     
