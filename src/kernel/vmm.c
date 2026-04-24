@@ -33,6 +33,10 @@ void VMM_Init(BootInfo *binfo) {
 }
 
 void VMM_MapPage(void* virtual_addr, void* physical_addr, uint64_t flags) {
+    VMM_MapPageEx(kernel_pml4, virtual_addr, physical_addr, flags);
+}
+
+void VMM_MapPageEx(pt_entry* pml4, void* virtual_addr, void* physical_addr, uint64_t flags) {
     uint64_t v = (uint64_t)virtual_addr;
     uint64_t p = (uint64_t)physical_addr;
 
@@ -49,7 +53,6 @@ void VMM_MapPage(void* virtual_addr, void* physical_addr, uint64_t flags) {
     uint64_t table_flags = PAGE_PRESENT | (flags & (PAGE_WRITABLE | PAGE_USER));
 
     /* 단계별 테이블 존재 확인 및 할당 */
-    pt_entry* pml4 = kernel_pml4;
     if (!(pml4[pml4_idx] & PAGE_PRESENT)) {
         pml4[pml4_idx] = (uint64_t)PMM_AllocPage() | table_flags;
         pt_entry* new_table = (pt_entry*)(pml4[pml4_idx] & ~0xFFFULL);
@@ -78,4 +81,34 @@ void VMM_MapPage(void* virtual_addr, void* physical_addr, uint64_t flags) {
 
     pt_entry* pt = (pt_entry*)(pd[pd_idx] & ~0xFFFULL);
     pt[pt_idx] = p | flags | PAGE_PRESENT;
+}
+
+void* VMM_CreateAddressSpace() {
+    /* 새로운 PML4 할당 */
+    pt_entry* pml4 = (pt_entry*)PMM_AllocPage();
+    if (!pml4) return NULL;
+    for (int i = 0; i < 512; i++) pml4[i] = 0;
+
+    /* 
+     * ToyOS의 커널과 유저는 현재 PML4의 0번 엔트리(0~512GB)를 공유합니다.
+     * 완전한 격리를 위해 0번 엔트리에 해당하는 PDPT를 별도로 생성합니다.
+     */
+    pt_entry* new_pdpt = (pt_entry*)PMM_AllocPage();
+    for (int i = 0; i < 512; i++) new_pdpt[i] = 0;
+
+    /* 마스터 커널 PDPT의 모든 엔트리 복사 (커널, 프레임버퍼 등 시스템 영역 공유) */
+    pt_entry* master_pdpt = (pt_entry*)(kernel_pml4[0] & ~0xFFFULL);
+    for (int i = 0; i < 512; i++) {
+        new_pdpt[i] = master_pdpt[i];
+    }
+
+    /* 새 PML4의 0번 엔트리가 새 PDPT를 가리키도록 설정 */
+    pml4[0] = (uint64_t)new_pdpt | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
+
+    /* 나머지 PML4 엔트리들도 마스터에서 복사 (추후 고위 주소 커널 대비) */
+    for (int i = 1; i < 512; i++) {
+        pml4[i] = kernel_pml4[i];
+    }
+
+    return pml4;
 }

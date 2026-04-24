@@ -51,6 +51,12 @@ LoadPageTable:
     mov cr3, rdi    ; CR3 레지스터에 PML4 테이블 주소 로드
     ret
 
+; GetCR3() -> void*
+global GetCR3
+GetCR3:
+    mov rax, cr3
+    ret
+
 ; 인터럽트 활성화/비활성화
 global EnableInterrupts
 EnableInterrupts:

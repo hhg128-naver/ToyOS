@@ -14,8 +14,13 @@ typedef uint64_t pt_entry;
 /* VMM 초기화 및 매핑 */
 void VMM_Init(BootInfo *binfo);
 void VMM_MapPage(void* virtual_addr, void* physical_addr, uint64_t flags);
+void VMM_MapPageEx(pt_entry* pml4, void* virtual_addr, void* physical_addr, uint64_t flags);
+
+/* 새로운 주소 공간(PML4) 생성 */
+void* VMM_CreateAddressSpace();
 
 /* 페이지 디렉토리 로드 */
 extern void LoadPageTable(void* pml4_addr);
+extern void* GetCR3();
 
 #endif

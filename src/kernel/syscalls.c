@@ -33,7 +33,7 @@ void * sbrk(ptrdiff_t incr) {
                 errno = ENOMEM;
                 return (void *)-1;
             }
-            VMM_MapPage((void*)addr, phys, PAGE_PRESENT | PAGE_WRITABLE);
+            VMM_MapPage((void*)addr, phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
         }
     }
 

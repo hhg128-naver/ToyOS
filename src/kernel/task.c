@@ -2,6 +2,8 @@
 #include "kernel.h"
 #include "heap.h"
 #include "gdt.h"
+#include "vmm.h"
+#include "pmm.h"
 #include <stdio.h>
 #include <stddef.h>
 
@@ -21,6 +23,7 @@ void InitializeTaskSystem() {
     mainTask->stack_base = NULL; // 이미 설정된 커널 스택 사용
     mainTask->kernel_stack_top = 0; // 메인 커널 스택은 별도 관리됨 (보통 부트 시 설정)
     mainTask->rsp = 0;           // Schedule 최초 호출 시 저장됨
+    mainTask->pml4 = GetCR3();    // 현재 로드된 커널 페이지 테이블 저장
     
     for (int i = 0; i < MAX_TASKS; i++) {
         tasks[i] = NULL;
@@ -48,6 +51,7 @@ Task* CreateTask(void (*entryPoint)()) {
     Task* newTask = (Task*)kmalloc(sizeof(Task));
     newTask->id = task_count;
     newTask->state = TASK_READY;
+    newTask->pml4 = tasks[0]->pml4; // 커널 태스크는 기본적으로 커널 페이지 테이블 공유
     
     // 태스크 스택 할당
     void* stack = kmalloc(TASK_STACK_SIZE);
@@ -97,25 +101,28 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     newTask->id = task_count;
     newTask->state = TASK_READY;
     
-    /* 1. 커널 스택 할당 (인터럽트/시스템 콜 시 복귀용) */
+    /* 1. 독립된 프로세스 주소 공간(PML4) 생성 */
+    newTask->pml4 = VMM_CreateAddressSpace();
+
+    /* 2. 커널 스택 할당 (인터럽트/시스템 콜 시 복귀용) */
     void* kstack = kmalloc(TASK_STACK_SIZE);
     uint64_t kstack_top = (uint64_t)kstack + TASK_STACK_SIZE;
     newTask->kernel_stack_top = kstack_top;
     
-    /* 2. 유저 스택 할당 및 매핑 */
+    /* 3. 유저 스택 할당 및 매핑 (태스크 전용 PML4에) */
     void* ustack_phys = PMM_AllocPage();
     void* ustack_virt = (void*)0x00007FFFFFFF0000; // 안전한 캐노니컬 가상 주소
-    VMM_MapPage(ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx(newTask->pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
 
-    /* 3. 유저 코드 영역 권한 업데이트 (PAGE_USER 추가) */
+    /* 4. 유저 코드 영역 권한 업데이트 (PAGE_USER 추가) */
     /* 현재는 커널 내부 함수를 사용하므로 해당 페이지를 찾아 권한만 확장합니다. 
      * 함수가 페이지 경계에 걸쳐 있을 수 있으므로 2개 페이지 정도를 넉넉히 매핑합니다. */
     uint64_t code_page = (uint64_t)entryPoint & ~0xFFFULL;
-    VMM_MapPage((void*)code_page, (void*)code_page, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
-    VMM_MapPage((void*)(code_page + PAGE_SIZE), (void*)(code_page + PAGE_SIZE), PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx(newTask->pml4, (void*)code_page, (void*)code_page, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx(newTask->pml4, (void*)(code_page + PAGE_SIZE), (void*)(code_page + PAGE_SIZE), PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
 
-    /* 4. 초기 컨텍스트 설정 (커널 스택에 저장) */
+    /* 5. 초기 컨텍스트 설정 (커널 스택에 저장) */
     Context* ctx = (Context*)(kstack_top - sizeof(Context));
     
     ctx->rip = (uint64_t)entryPoint;
@@ -138,7 +145,7 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     tasks[task_count++] = newTask;
     
     RestoreInterrupts(flags);
-    printf("Created New User Task with arg: %d\n", arg);
+    printf("Created Isolated User Task with arg: %d, PML4: %p\n", arg, newTask->pml4);
     
     return newTask;
 }
@@ -165,18 +172,21 @@ uint64_t Schedule(uint64_t current_rsp) {
         current_task_index = (current_task_index + 1) % task_count;
     } while (tasks[current_task_index]->state == TASK_SLEEP);
 
+    Task* next_task = tasks[current_task_index];
+
+    // 페이지 테이블(CR3) 전환 - 주소 공간 격리의 핵심
+    if (next_task->pml4 != NULL && next_task->pml4 != GetCR3()) {
+        LoadPageTable(next_task->pml4);
+    }
+
     // 새로운 태스크의 정보를 전역 변수 및 TSS에 반영
-    current_kernel_stack_top = tasks[current_task_index]->kernel_stack_top;
+    current_kernel_stack_top = next_task->kernel_stack_top;
     if (current_kernel_stack_top != 0) {
         SetTSSStack(current_kernel_stack_top);
     }
 
-    uint64_t next_rsp = tasks[current_task_index]->rsp;
+    uint64_t next_rsp = next_task->rsp;
     
-    // 주의: 여기서 RestoreInterrupts를 호출해도, 
-    // 어차피 반환된 RSP로 스택이 바뀌고 iretq가 실행되면 
-    // 새로운 태스크의 RFLAGS가 적용되므로 큰 영향은 없음.
-    // 하지만 논리적 일관성을 위해 호출.
     RestoreInterrupts(flags);
 
     return next_rsp;
