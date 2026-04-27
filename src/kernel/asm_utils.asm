@@ -10,7 +10,7 @@ global LoadIDT
 global LoadPageTable
 global isr0, isr3, isr13, isr14
 global irq32, irq33  ; IRQ 0 (Timer), IRQ 1 (Keyboard)
-global outb, inb
+global outb, inb, outw, inw, insw
 extern ExceptionHandler
 extern InterruptHandler
 extern current_kernel_stack_top
@@ -128,6 +128,25 @@ outb:
 inb:
     mov dx, di
     in al, dx
+    ret
+
+outw:
+    mov ax, si      ; RDI(port), RSI(data) -> AX로 데이터 복사
+    mov dx, di      ; DX로 포트 번호 복사
+    out dx, ax
+    ret
+
+inw:
+    mov dx, di
+    in ax, dx
+    ret
+
+insw:
+    mov dx, di      ; RDI(port) -> DX
+    mov rdi, rsi    ; RSI(buffer) -> RDI
+    mov rcx, rdx    ; RDX(count) -> RCX
+    cld
+    rep insw
     ret
 
 ; ISR Macros

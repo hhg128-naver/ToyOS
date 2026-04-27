@@ -63,6 +63,13 @@ uint64_t ReadCR4(void);
 void WriteCR4(uint64_t cr4);
 void InitFPU(void);
 
+/* --- I/O 포트 제어 (asm_utils.asm) --- */
+void outb(uint16_t port, uint8_t data);
+uint8_t inb(uint16_t port);
+void outw(uint16_t port, uint16_t data);
+uint16_t inw(uint16_t port);
+void insw(uint16_t port, void* buffer, uint32_t count);
+
 // RFLAGS의 IF(Interrupt Flag) 비트는 9번 비트 (0x200)
 #define RFLAGS_IF 0x200
 
