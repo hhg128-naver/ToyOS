@@ -74,6 +74,29 @@ void PutChar(BootInfo *binfo, int x, int y, char c, uint32_t color, uint32_t bg_
 }
 
 /*
+ * ScrollUp: 화면의 내용을 한 행(16 픽셀)만큼 위로 올립니다.
+ */
+static void ScrollUp(BootInfo *binfo) {
+    uint32_t *vidptr = binfo->framebuffer;
+    uint32_t width = binfo->horizontal_resolution;
+    uint32_t height = binfo->vertical_resolution;
+    
+    /* 1. 모든 픽셀을 16행 위로 복사 */
+    uint64_t scroll_pixels = (uint64_t)(height - 16) * width;
+    uint64_t offset_pixels = (uint64_t)16 * width;
+    
+    for (uint64_t i = 0; i < scroll_pixels; i++) {
+        vidptr[i] = vidptr[i + offset_pixels];
+    }
+    
+    /* 2. 마지막 16행을 배경색으로 지움 */
+    uint64_t total_pixels = (uint64_t)height * width;
+    for (uint64_t i = scroll_pixels; i < total_pixels; i++) {
+        vidptr[i] = current_bg_color;
+    }
+}
+
+/*
  * PrintString: 문자열을 현재 커서 위치에 출력합니다.
  */
 void PrintString(BootInfo *binfo, const char *str, uint32_t color) {
@@ -82,6 +105,13 @@ void PrintString(BootInfo *binfo, const char *str, uint32_t color) {
         if (str[i] == '\n') {
             cursor_x = 0;
             cursor_y += 16;
+        } else if (str[i] == '\b') {
+            /* 백스페이스 처리 */
+            if (cursor_x >= 8) {
+                cursor_x -= 8;
+                /* 현재 배경색으로 공백을 그려서 이전 문자를 지움 */
+                PutChar(binfo, cursor_x, cursor_y, ' ', current_bg_color, current_bg_color);
+            }
         } else {
             PutChar(binfo, cursor_x, cursor_y, str[i], color, current_bg_color);
             cursor_x += 8;
@@ -93,9 +123,10 @@ void PrintString(BootInfo *binfo, const char *str, uint32_t color) {
             cursor_y += 16;
         }
 
-        /* 세로 화면 끝에 도달하면 다시 상단으로 */
+        /* 세로 화면 끝에 도달하면 스크롤 */
         if (cursor_y + 16 > (int)binfo->vertical_resolution) {
-            cursor_y = 0;
+            ScrollUp(binfo);
+            cursor_y -= 16;
         }
     }
 }

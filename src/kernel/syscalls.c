@@ -70,14 +70,25 @@ int write(int file, char *ptr, int len) {
  */
 int read(int file, char *ptr, int len) {
     if (file == 0) { // stdin
-        int i;
-        for (i = 0; i < len; i++) {
-            ptr[i] = Keyboard_GetChar();
+        int i = 0;
+        while (i < len) {
+            char c = Keyboard_GetChar();
+            
+            /* 백스페이스 처리 */
+            if (c == '\b') {
+                if (i > 0) {
+                    i--;
+                }
+                continue;
+            }
+
+            ptr[i] = c;
             /* 만약 개행 문자를 받으면 읽기 중단 (라인 단위 입력 지원) */
             if (ptr[i] == '\n') {
                 i++;
                 break;
             }
+            i++;
         }
         return i;
     }
