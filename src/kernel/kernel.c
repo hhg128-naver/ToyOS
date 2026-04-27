@@ -11,6 +11,7 @@
 #include "timer.h"
 #include "task.h"
 #include "syscall.h"
+#include "shell.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
@@ -230,13 +231,16 @@ void kmain(BootInfo *boot_info)
     
     /* 8. 유저 모드 테스트 태스크 생성 (격리 검증용으로 2개 생성) */
     printf("UserMain Address: %p\n", (void*)UserMain);
-    CreateUserTask(UserMain, 111); // 첫 번째 유저 태스크
-    CreateUserTask(UserMain, 222); // 두 번째 유저 태스크 (동일한 가상 주소 스택 사용)
+    //CreateUserTask(UserMain, 111); // 첫 번째 유저 태스크
+    //CreateUserTask(UserMain, 222); // 두 번째 유저 태스크 (동일한 가상 주소 스택 사용)
 
     EnableInterrupts();
     printf("System Ready with Multitasking.\n");
 
-    printf("\nToyOS is now running with Newlib support.\n");
+    /* 9. 쉘 시작 */
+    CreateTask(Shell_Main);
+
+    printf("\nToyOS is now running with Shell support.\n");
     printf("Entering Task A loop...\n");
 
     uint64_t countA = 0;

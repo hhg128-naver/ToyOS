@@ -35,5 +35,6 @@ void InitializeTaskSystem();
 Task* CreateTask(void (*entryPoint)());
 Task* CreateUserTask(void (*entryPoint)(), int arg);
 uint64_t Schedule(uint64_t current_rsp);
+void Yield();
 
 #endif
