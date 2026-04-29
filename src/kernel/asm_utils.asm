@@ -8,7 +8,10 @@ section .text
 global LoadGDT
 global LoadIDT
 global LoadPageTable
-global isr0, isr3, isr13, isr14
+global isr0, isr1, isr2, isr3, isr4, isr5, isr6, isr7, isr8, isr9
+global isr10, isr11, isr12, isr13, isr14, isr15, isr16, isr17, isr18, isr19
+global isr20, isr21, isr22, isr23, isr24, isr25, isr26, isr27, isr28, isr29
+global isr30, isr31
 global irq32, irq33  ; IRQ 0 (Timer), IRQ 1 (Keyboard)
 global outb, inb, outw, inw, insw
 extern ExceptionHandler
@@ -142,11 +145,15 @@ inw:
     ret
 
 insw:
+    push rdi
+    push rcx
+    mov rcx, rdx    ; RDX(count) -> RCX (DX를 덮어쓰기 전에 먼저 복사)
     mov dx, di      ; RDI(port) -> DX
     mov rdi, rsi    ; RSI(buffer) -> RDI
-    mov rcx, rdx    ; RDX(count) -> RCX
     cld
     rep insw
+    pop rcx
+    pop rdi
     ret
 
 ; ISR Macros
@@ -171,10 +178,38 @@ irq%1:
     jmp irq_common
 %endmacro
 
-ISR_NOERR 0           ; #DE
-ISR_NOERR 3           ; #BP
-ISR_ERR   13          ; #GP
-ISR_ERR   14          ; #PF
+ISR_NOERR 0 ; #DE
+ISR_NOERR 1 ; #DB
+ISR_NOERR 2 ; NMI
+ISR_NOERR 3 ; #BP
+ISR_NOERR 4 ; #OF
+ISR_NOERR 5 ; #BR
+ISR_NOERR 6 ; #UD
+ISR_NOERR 7 ; #NM
+ISR_ERR   8 ; #DF
+ISR_NOERR 9 ; Coprocessor Segment Overrun
+ISR_ERR   10; #TS
+ISR_ERR   11; #NP
+ISR_ERR   12; #SS
+ISR_ERR   13; #GP
+ISR_ERR   14; #PF
+ISR_NOERR 15; Reserved
+ISR_NOERR 16; #MF
+ISR_ERR   17; #AC
+ISR_NOERR 18; #MC
+ISR_NOERR 19; #XM
+ISR_NOERR 20; #VE
+ISR_ERR   21; Control Protection Exception
+ISR_NOERR 22; Reserved
+ISR_NOERR 23; Reserved
+ISR_NOERR 24; Reserved
+ISR_NOERR 25; Reserved
+ISR_NOERR 26; Reserved
+ISR_NOERR 27; Reserved
+ISR_NOERR 28; Reserved
+ISR_ERR   29; VMM Communication Exception
+ISR_ERR   30; Security Exception
+ISR_NOERR 31; Reserved
 
 IRQ 32                ; IRQ 0 (Timer)
 IRQ 33                ; IRQ 1 (Keyboard)

@@ -53,8 +53,8 @@ struct GDTPtr {
 /* GDT 세그먼트 인덱스 정의 */
 #define GDT_KERNEL_CODE  0x08
 #define GDT_KERNEL_DATA  0x10
-#define GDT_USER_CODE    0x1B // Index 3 | RPL 3
-#define GDT_USER_DATA    0x23 // Index 4 | RPL 3
+#define GDT_USER_DATA    0x1B // Index 3 | RPL 3
+#define GDT_USER_CODE    0x23 // Index 4 | RPL 3
 #define GDT_TSS          0x28 // Index 5 (16 bytes)
 
 /* GDT 초기화 함수 */

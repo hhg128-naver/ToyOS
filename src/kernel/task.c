@@ -32,9 +32,10 @@ void InitializeTaskSystem() {
     tasks[0] = mainTask;
     current_task_index = 0;
     
-    // 초기 커널 스택 상단 설정 (메인 태스크는 일단 0으로 두거나 현재 RSP 근처로 설정 가능)
-    // 여기서는 일단 0으로 두고, CreateTask로 생성된 태스크부터 본격 관리
-    current_kernel_stack_top = 0;
+    // 초기 커널 스택 상단 설정 (메인 태스크는 일단 현재 RSP 근처를 기준으로 삼음)
+    uint64_t dummy_rsp;
+    __asm__ volatile("mov %%rsp, %0" : "=r"(dummy_rsp));
+    current_kernel_stack_top = dummy_rsp;
     
     Printf("Task System Initialized.\n");
 }

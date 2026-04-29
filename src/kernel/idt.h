@@ -27,10 +27,10 @@ void InitIDT();
 extern void LoadIDT(struct IDTPtr *idt_ptr);
 
 /* 기본 예외 핸들러 (어셈블리에서 구현) */
-extern void isr0();  // Divide Error
-extern void isr3();  // Breakpoint
-extern void isr13(); // General Protection Fault
-extern void isr14(); // Page Fault
+extern void isr0(), isr1(), isr2(), isr3(), isr4(), isr5(), isr6(), isr7(), isr8(), isr9();
+extern void isr10(), isr11(), isr12(), isr13(), isr14(), isr15(), isr16(), isr17(), isr18(), isr19();
+extern void isr20(), isr21(), isr22(), isr23(), isr24(), isr25(), isr26(), isr27(), isr28(), isr29();
+extern void isr30(), isr31();
 
 /* 하드웨어 인터럽트 핸들러 (어셈블리에서 구현) */
 extern void irq32(); // IRQ 0: Timer

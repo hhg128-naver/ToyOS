@@ -33,12 +33,19 @@ uint64_t ExceptionHandler(Context *regs) {
     }
     
     Printf("\n[CPU EXCEPTION OCCURRED]\n");
-    if (regs->interrupt_number == 14) {
-        Printf("Type: PAGE FAULT (#PF)\n");
-    } else if (regs->interrupt_number == 13) {
-        Printf("Type: GENERAL PROTECTION FAULT (#GP)\n");
-    } else if (regs->interrupt_number == 6) {
-        Printf("Type: INVALID OPCODE (#UD)\n");
+    static const char* exception_names[] = {
+        "#DE Divide Error", "#DB Debug", "NMI Interrupt", "#BP Breakpoint",
+        "#OF Overflow", "#BR BOUND Range Exceeded", "#UD Invalid Opcode", "#NM Device Not Available",
+        "#DF Double Fault", "Coprocessor Segment Overrun", "#TS Invalid TSS", "#NP Segment Not Present",
+        "#SS Stack Segment Fault", "#GP General Protection Fault", "#PF Page Fault", "Reserved",
+        "#MF x87 FPU Floating-Point Error", "#AC Alignment Check", "#MC Machine Check", "#XM SIMD Floating-Point Exception",
+        "#VE Virtualization Exception", "Control Protection Exception", "Reserved", "Reserved",
+        "Reserved", "Reserved", "Reserved", "Reserved",
+        "Reserved", "VMM Communication Exception", "Security Exception", "Reserved"
+    };
+
+    if (regs->interrupt_number < 32) {
+        printf("Type: %s\n", exception_names[regs->interrupt_number]);
     }
 
     // Newlib의 printf가 연동되어 있으므로 이를 활용해 상세 정보를 출력합니다.

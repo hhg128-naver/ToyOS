@@ -5,6 +5,7 @@
 /bootx64.efi
 build/
 Dependency.dep
+*.img
 
 # Temporary directories
 iso/
@@ -20,3 +21,4 @@ Thumbs.db
 
 # toolchain
 toolchain/
+mnt/

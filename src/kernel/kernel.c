@@ -13,6 +13,8 @@
 #include "syscall.h"
 #include "shell.h"
 #include "ide.h"
+#include "vfs.h"
+#include "fat32.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
@@ -264,7 +266,10 @@ void kmain(BootInfo *boot_info)
     /* 8. IDE 드라이버 초기화 */
     IDE_Init();
     
-    /* 9. 유저 모드 테스트 태스크 생성 (격리 검증용으로 2개 생성) */
+    /* 9. FAT32 파일 시스템 초기화 */
+    FAT32_Init();
+    
+    /* 10. 유저 모드 테스트 태스크 생성 (격리 검증용으로 2개 생성) */
     printf("UserMain Address: %p\n", (void*)UserMain);
     //CreateUserTask(UserMain, 111); // 첫 번째 유저 태스크
     //CreateUserTask(UserMain, 222); // 두 번째 유저 태스크 (동일한 가상 주소 스택 사용)
