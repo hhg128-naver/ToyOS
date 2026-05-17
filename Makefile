@@ -1,13 +1,14 @@
 # 크로스 컴파일러 경로 정의
 TOOLCHAIN_DIR = $(shell pwd)/toolchain/install
-CROSS_GCC     = $(TOOLCHAIN_DIR)/bin/x86_64-elf-gcc
-CROSS_LD      = $(TOOLCHAIN_DIR)/bin/x86_64-elf-gcc
+CLANG         = clang
+CLANGXX       = clang++
+LD_LLD        = ld.lld
 CROSS_OBJCOPY = $(TOOLCHAIN_DIR)/bin/x86_64-elf-objcopy
 NASM          = nasm
 
 # 호스트 GCC (UEFI 빌드용)
-HOST_GCC      = gcc
-HOST_LD       = ld
+HOST_GCC      = clang
+HOST_LD       = ld.lld
 HOST_OBJCOPY  = objcopy
 
 # 라이브러리 파일 경로 직접 정의
@@ -32,8 +33,9 @@ EFI_LDS     = $(EFI_LIB)/elf_x86_64_efi.lds
 
 # 컴파일 플래그 (64-bit Kernel)
 NEWLIB_INC = $(TOOLCHAIN_DIR)/x86_64-elf/include
-CFLAGS    = -m64 -c -g -I$(KERNEL_DIR) -I$(NEWLIB_INC) -fno-stack-protector -mno-red-zone -fno-pic -ffreestanding
-LDFLAGS   = -m64 -g -T $(KERNEL_DIR)/link.ld -nostdlib
+CFLAGS    = -target x86_64-elf -m64 -c -g -I$(KERNEL_DIR) -I$(NEWLIB_INC) -fno-stack-protector -mno-red-zone -fno-pic -ffreestanding
+CXXFLAGS  = $(CFLAGS) -fno-exceptions -fno-rtti
+LDFLAGS   = -m elf_x86_64 -T $(KERNEL_DIR)/link.ld
 
 # 컴파일 플래그 (UEFI) - 호스트 GCC용
 EFI_CFLAGS = -g -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
@@ -47,6 +49,8 @@ ASM_SOURCES  = $(wildcard $(KERNEL_DIR)/*.asm)
 UEFI_SOURCES = $(wildcard $(UEFI_DIR)/*.c)
 
 C_OBJECTS    = $(patsubst $(KERNEL_DIR)/%.c, $(KERNEL_BUILD_DIR)/%.o, $(C_SOURCES))
+CPP_SOURCES  = $(wildcard $(KERNEL_DIR)/*.cpp)
+CPP_OBJECTS  = $(patsubst $(KERNEL_DIR)/%.cpp, $(KERNEL_BUILD_DIR)/%.o, $(CPP_SOURCES))
 ASM_OBJECTS  = $(patsubst $(KERNEL_DIR)/%.asm, $(KERNEL_BUILD_DIR)/%.o, $(ASM_SOURCES))
 UEFI_OBJECTS = $(patsubst $(UEFI_DIR)/%.c, $(UEFI_BUILD_DIR)/%.o, $(UEFI_SOURCES))
 
@@ -55,12 +59,16 @@ UEFI_TARGET = bootx64.efi
 
 all: $(TARGET) uefi
 
-$(TARGET): $(C_OBJECTS) $(ASM_OBJECTS)
-	$(CROSS_LD) $(LDFLAGS) -o $@ $^ $(LIBC_A) $(LIBGCC_A)
+$(TARGET): $(C_OBJECTS) $(CPP_OBJECTS) $(ASM_OBJECTS)
+	$(LD_LLD) $(LDFLAGS) -o $@ $^ $(LIBC_A) $(LIBGCC_A)
 
 $(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c
 	@mkdir -p $(KERNEL_BUILD_DIR)
-	$(CROSS_GCC) $(CFLAGS) $< -o $@
+	$(CLANG) $(CFLAGS) $< -o $@
+
+$(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.cpp
+	@mkdir -p $(KERNEL_BUILD_DIR)
+	$(CLANGXX) $(CXXFLAGS) $< -o $@
 
 $(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.asm
 	@mkdir -p $(KERNEL_BUILD_DIR)

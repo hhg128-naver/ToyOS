@@ -18,6 +18,7 @@
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
+extern void call_constructors();
 
 /* 
  * 그래픽 콘솔을 위한 전역 상태 변수 
@@ -234,6 +235,9 @@ void kmain(BootInfo *boot_info)
 
     /* 4. 커널 힙 초기화 (기존 ToyOS 전용 힙) */
     Heap_Init(boot_info);
+
+    /* C++ 전역 생성자 호출 */
+    call_constructors();
 
     /* 5. 환영 메시지 및 Newlib 테스트 */
     printf("\nWelcome to ToyOS! (UEFI 64-bit Mode)\n");

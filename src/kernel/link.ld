@@ -6,22 +6,30 @@ SECTIONS
     /* 커널 로드 주소 (1MB) */
     . = 0x100000;
 
-    .text :
+    .text ALIGN(0x1000) :
     {
         *(.text .text.*)       /* 모든 코드 섹션 포함 */
     }
 
-    .rodata :
+    .rodata ALIGN(0x1000) :
     {
         *(.rodata .rodata.*)   /* 읽기 전용 데이터 포함 (printf 포맷 문자열 등) */
     }
 
-    .data :
+    .init_array ALIGN(0x1000) :
+    {
+        PROVIDE_HIDDEN (__init_array_start = .);
+        KEEP (*(SORT(.init_array.*)))
+        KEEP (*(.init_array*))
+        PROVIDE_HIDDEN (__init_array_end = .);
+    }
+
+    .data ALIGN(0x1000) :
     {
         *(.data .data.*)       /* 초기화된 데이터 포함 */
     }
 
-    .bss :
+    .bss ALIGN(0x1000) :
     {
         *(COMMON)
         *(.bss .bss.*)         /* 초기화되지 않은 데이터 포함 */
