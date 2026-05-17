@@ -69,9 +69,17 @@ typedef struct {
 #define FAT32_ATTR_ARCHIVE   0x20
 #define FAT32_ATTR_LFN       0x0F
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * FAT32 초기화 및 마운트
  */
 void FAT32_Init();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
