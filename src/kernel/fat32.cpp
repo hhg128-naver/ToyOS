@@ -182,13 +182,21 @@ VFS_Node* FAT32FileSystem::readDir(VFS_Node* node, uint32_t index) {
                 }
                 memset(child, 0, sizeof(VFS_Node));
                 
-                // 8.3 형식을 읽기 좋은 문자열로 변환
+                // 8.3 형식을 읽기 좋은 문자열(소문자)로 변환
                 int pos = 0;
-                for (int j = 0; j < 8 && entries[i].name[j] != ' '; j++) child->name[pos++] = entries[i].name[j];
+                for (int j = 0; j < 8 && entries[i].name[j] != ' '; j++) {
+                    char c = entries[i].name[j];
+                    if (c >= 'A' && c <= 'Z') c += 32; // 소문자 변환
+                    child->name[pos++] = c;
+                }
                 
                 if (!(entries[i].attr & FAT32_ATTR_DIRECTORY)) {
                     child->name[pos++] = '.';
-                    for (int j = 0; j < 3 && entries[i].ext[j] != ' '; j++) child->name[pos++] = entries[i].ext[j];
+                    for (int j = 0; j < 3 && entries[i].ext[j] != ' '; j++) {
+                        char c = entries[i].ext[j];
+                        if (c >= 'A' && c <= 'Z') c += 32; // 소문자 변환
+                        child->name[pos++] = c;
+                    }
                 }
                 child->name[pos] = '\0';
                 

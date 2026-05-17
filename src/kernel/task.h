@@ -34,6 +34,9 @@ extern uint64_t current_kernel_stack_top;
 void InitializeTaskSystem();
 Task* CreateTask(void (*entryPoint)());
 Task* CreateUserTask(void (*entryPoint)(), int arg);
+Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4);
+void ExitCurrentTask();
+Task* GetCurrentTask();
 uint64_t Schedule(uint64_t current_rsp);
 void Yield();
 

@@ -57,7 +57,10 @@ UEFI_OBJECTS = $(patsubst $(UEFI_DIR)/%.c, $(UEFI_BUILD_DIR)/%.o, $(UEFI_SOURCES
 TARGET  = kernel
 UEFI_TARGET = bootx64.efi
 
-all: $(TARGET) uefi
+all: $(TARGET) uefi user_apps
+
+user_apps:
+	$(MAKE) -C user
 
 $(TARGET): $(C_OBJECTS) $(CPP_OBJECTS) $(ASM_OBJECTS)
 	$(LD_LLD) $(LDFLAGS) -o $@ $^ $(LIBC_A) $(LIBGCC_A)
@@ -94,6 +97,7 @@ run-uefi: $(UEFI_TARGET) $(TARGET)
 	mkdir -p iso/EFI/BOOT
 	cp $(UEFI_TARGET) iso/EFI/BOOT/BOOTX64.EFI
 	cp $(TARGET) iso/kernel
+	cp user/*.elf iso/ || true
 	qemu-system-x86_64 \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive format=raw,file=fat:rw:iso \
@@ -103,6 +107,7 @@ run-uefi-debug: $(UEFI_TARGET) $(TARGET)
 	mkdir -p iso/EFI/BOOT
 	cp $(UEFI_TARGET) iso/EFI/BOOT/BOOTX64.EFI
 	cp $(TARGET) iso/kernel
+	cp user/*.elf iso/ || true
 	qemu-system-x86_64 \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive format=raw,file=fat:rw:iso \
@@ -116,6 +121,7 @@ run-uefi-hdd: $(UEFI_TARGET) $(TARGET)
 	sudo mkdir -p mnt/EFI/BOOT
 	sudo cp $(UEFI_TARGET) mnt/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(TARGET) mnt/kernel
+	sudo cp user/*.elf mnt/ || true
 	sudo umount mnt
 	qemu-system-x86_64 \
 		-bios /usr/share/ovmf/OVMF.fd \
@@ -129,6 +135,7 @@ run-uefi-hdd-debug: $(UEFI_TARGET) $(TARGET)
 	sudo mkdir -p mnt/EFI/BOOT
 	sudo cp $(UEFI_TARGET) mnt/EFI/BOOT/BOOTX64.EFI
 	sudo cp $(TARGET) mnt/kernel
+	sudo cp user/*.elf mnt/ || true
 	sudo umount mnt
 	qemu-system-x86_64 \
 		-bios /usr/share/ovmf/OVMF.fd \
@@ -136,3 +143,4 @@ run-uefi-hdd-debug: $(UEFI_TARGET) $(TARGET)
 
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET) $(UEFI_TARGET) bootx64.so iso
+	$(MAKE) -C user clean

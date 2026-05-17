@@ -50,8 +50,9 @@ uint64_t SyscallHandler(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint
             return 0;
 
         case SYSCALL_EXIT:
-            Printf("\nUser Task Exited.\n");
-            while(1);
+            Printf("\n[Kernel] User Task Exited.\n");
+            extern void ExitCurrentTask();
+            ExitCurrentTask();
             return 0;
 
         default:

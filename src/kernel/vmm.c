@@ -96,10 +96,25 @@ void* VMM_CreateAddressSpace() {
     pt_entry* new_pdpt = (pt_entry*)PMM_AllocPage();
     for (int i = 0; i < 512; i++) new_pdpt[i] = 0;
 
-    /* 마스터 커널 PDPT의 모든 엔트리 복사 (커널, 프레임버퍼 등 시스템 영역 공유) */
+    /* 
+     * 마스터 커널 PDPT의 엔트리를 복사하되, PD 레벨까지 딥 카피합니다.
+     * 이렇게 해야 유저별 주소 공간에서 새로운 매핑(유저 스택 등)을 추가할 때
+     * 커널이나 다른 태스크의 페이지 테이블 구조를 오염시키지 않습니다.
+     */
     pt_entry* master_pdpt = (pt_entry*)(kernel_pml4[0] & ~0xFFFULL);
     for (int i = 0; i < 512; i++) {
-        new_pdpt[i] = master_pdpt[i];
+        if (master_pdpt[i] & PAGE_PRESENT) {
+            /* PD 레벨 딥 카피: 새로운 PD 페이지를 할당하고 커널 PD 내용을 복사 */
+            pt_entry* master_pd = (pt_entry*)(master_pdpt[i] & ~0xFFFULL);
+            pt_entry* new_pd = (pt_entry*)PMM_AllocPage();
+            for (int j = 0; j < 512; j++) {
+                new_pd[j] = master_pd[j];
+            }
+            /* 기존 플래그를 유지하면서 새 PD의 물리 주소로 교체 */
+            new_pdpt[i] = (uint64_t)new_pd | (master_pdpt[i] & 0xFFFULL);
+        } else {
+            new_pdpt[i] = 0;
+        }
     }
 
     /* 새 PML4의 0번 엔트리가 새 PDPT를 가리키도록 설정 */

@@ -7,6 +7,7 @@ extern "C" {
     #include "kernel.h"
     #include "pmm.h"
     #include "vfs.h"
+    #include "elf.h"
 }
 
 #define MAX_COMMAND_LEN 128
@@ -236,6 +237,38 @@ public:
     }
 };
 
+class RunCommand : public Command {
+public:
+    const char* getName() const override { return "run"; }
+    const char* getDescription() const override { return "Run a user binary (e.g. run hello.elf 123)"; }
+    void execute(const char* args) override {
+        if (args == nullptr || strlen(args) == 0) {
+            printf("Usage: run <filename> [arg]\n");
+            return;
+        }
+
+        char filename[128];
+        int arg_val = 0;
+        int i = 0;
+        while (args[i] != ' ' && args[i] != '\0' && i < 127) {
+            filename[i] = args[i];
+            i++;
+        }
+        filename[i] = '\0';
+
+        if (args[i] == ' ') {
+            arg_val = atoi(args + i + 1);
+        }
+
+        Task* t = LoadELFProcess(filename, arg_val);
+        if (t) {
+            printf("Started process '%s' with PID %d\n", filename, (int)t->id);
+        } else {
+            printf("Failed to start process '%s'\n", filename);
+        }
+    }
+};
+
 // Global command instances
 HelpCommand g_HelpCmd;
 ClearCommand g_ClearCmd;
@@ -243,6 +276,7 @@ MemCommand g_MemCmd;
 LsCommand g_LsCmd;
 CatCommand g_CatCmd;
 RebootCommand g_RebootCmd;
+RunCommand g_RunCmd;
 
 extern "C" void Shell_Main() {
     static bool initialized = false;
@@ -253,6 +287,7 @@ extern "C" void Shell_Main() {
         g_Shell.registerCommand(&g_LsCmd);
         g_Shell.registerCommand(&g_CatCmd);
         g_Shell.registerCommand(&g_RebootCmd);
+        g_Shell.registerCommand(&g_RunCmd);
         initialized = true;
     }
 

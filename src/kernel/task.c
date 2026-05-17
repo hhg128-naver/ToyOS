@@ -151,6 +151,75 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     return newTask;
 }
 
+Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
+    uint64_t flags = SaveAndDisableInterrupts();
+
+    if (task_count >= MAX_TASKS) {
+        Printf("Error: Max tasks reached.\n");
+        RestoreInterrupts(flags);
+        return NULL;
+    }
+
+    Task* newTask = (Task*)kmalloc(sizeof(Task));
+    newTask->id = task_count;
+    newTask->state = TASK_READY;
+    
+    /* ELF 로더에서 생성한 독립된 프로세스 주소 공간(PML4) 할당 */
+    newTask->pml4 = pml4;
+
+    /* 커널 스택 할당 (인터럽트/시스템 콜 시 복귀용) */
+    void* kstack = kmalloc(TASK_STACK_SIZE);
+    uint64_t kstack_top = (uint64_t)kstack + TASK_STACK_SIZE;
+    newTask->kernel_stack_top = kstack_top;
+    
+    /* 유저 스택 할당 및 매핑 (태스크 전용 PML4에) */
+    void* ustack_phys = PMM_AllocPage();
+    void* ustack_virt = (void*)0x00007FFFFFFF0000; // 안전한 캐노니컬 가상 주소
+    VMM_MapPageEx(newTask->pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
+
+    /* 유저 코드 영역 매핑은 ELF 로더(LoadELFProcess)에서 이미 완료되었으므로 생략 */
+
+    /* 초기 컨텍스트 설정 (커널 스택에 저장) */
+    Context* ctx = (Context*)(kstack_top - sizeof(Context));
+    
+    ctx->rip = entryPoint;
+    ctx->cs = 0x23;         // User Code Segment (Index 4, RPL 3)
+    ctx->rflags = 0x202;    // IF=1
+    ctx->rsp = ustack_top;  // 유저 스택 포인터
+    ctx->ss = 0x1B;         // User Data Segment (Index 3, RPL 3)
+    
+    // 범용 레지스터 초기화
+    ctx->rax = ctx->rbx = ctx->rcx = ctx->rdx = 0;
+    ctx->rsi = 0;
+    ctx->rdi = (uint64_t)arg; // 첫 번째 인자 전달
+    ctx->rbp = 0;
+    ctx->r8 = ctx->r9 = ctx->r10 = ctx->r11 = 0;
+    ctx->r12 = ctx->r13 = ctx->r14 = ctx->r15 = 0;
+    ctx->interrupt_number = 0;
+    ctx->error_code = 0;
+
+    newTask->rsp = (uint64_t)ctx;
+    tasks[task_count++] = newTask;
+    
+    RestoreInterrupts(flags);
+    printf("Created ELF User Task with Entry: %p, arg: %d\n", (void*)entryPoint, arg);
+    
+    return newTask;
+}
+
+Task* GetCurrentTask() {
+    return tasks[current_task_index];
+}
+
+void ExitCurrentTask() {
+    uint64_t flags = SaveAndDisableInterrupts();
+    tasks[current_task_index]->state = TASK_SLEEP;
+    RestoreInterrupts(flags);
+    Yield();
+    while(1); // 절대 도달하지 않음
+}
+
 uint64_t Schedule(uint64_t current_rsp) {
     // 스케줄러 핵심 로직 보호
     uint64_t flags = SaveAndDisableInterrupts();
