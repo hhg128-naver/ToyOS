@@ -20,5 +20,10 @@ iso/
 Thumbs.db
 
 # toolchain
-toolchain/
+toolchain/src
+toolchain/install/bin
+toolchain/install/include
+toolchain/install/lib
+toolchain/install/libexec
+toolchain/install/share
 mnt/

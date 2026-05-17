@@ -97,8 +97,8 @@ run-uefi-debug: $(UEFI_TARGET) $(TARGET)
 	cp $(TARGET) iso/kernel
 	qemu-system-x86_64 \
 		-bios /usr/share/ovmf/OVMF.fd \
-		-drive format=raw,file=fat:rw:iso -s -S \
-		-drive file=hdd.img,format=raw,if=ide
+		-drive format=raw,file=fat:rw:iso \
+		-drive file=hdd.img,format=raw,if=ide -s -S
 
 run-uefi-hdd: $(UEFI_TARGET) $(TARGET)
 	mkdir -p iso/EFI/BOOT
@@ -112,6 +112,19 @@ run-uefi-hdd: $(UEFI_TARGET) $(TARGET)
 	qemu-system-x86_64 \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive file=hdd.img,format=raw,if=ide
+
+run-uefi-hdd-debug: $(UEFI_TARGET) $(TARGET)
+	mkdir -p iso/EFI/BOOT
+	cp $(UEFI_TARGET) iso/EFI/BOOT/BOOTX64.EFI
+	cp $(TARGET) iso/kernel
+	sudo mount -o loop hdd.img mnt
+	sudo mkdir -p mnt/EFI/BOOT
+	sudo cp $(UEFI_TARGET) mnt/EFI/BOOT/BOOTX64.EFI
+	sudo cp $(TARGET) mnt/kernel
+	sudo umount mnt
+	qemu-system-x86_64 \
+		-bios /usr/share/ovmf/OVMF.fd \
+		-drive file=hdd.img,format=raw,if=ide -s -S
 
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET) $(UEFI_TARGET) bootx64.so iso
