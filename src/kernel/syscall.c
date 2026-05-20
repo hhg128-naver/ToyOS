@@ -1,6 +1,7 @@
 #include "syscall.h"
 #include "kernel.h"
 #include "gdt.h"
+#include "task.h"
 
 /* 어셈블리 함수 선언 (asm_utils.asm) */
 extern void WriteMSR(uint64_t msr, uint64_t value);
@@ -51,8 +52,12 @@ uint64_t SyscallHandler(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint
 
         case SYSCALL_EXIT:
             Printf("\n[Kernel] User Task Exited.\n");
-            extern void ExitCurrentTask();
             ExitCurrentTask();
+            return 0;
+
+        case SYSCALL_WAIT:
+            /* arg1: 대기할 태스크 ID */
+            WaitTask(arg1);
             return 0;
 
         default:

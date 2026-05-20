@@ -252,7 +252,7 @@ isr_common:
     pop rax
 
     add rsp, 16
-    iretq
+    o64 iret
 
 irq_common:
     push rax
@@ -292,7 +292,7 @@ irq_common:
     pop rax
 
     add rsp, 16
-    iretq
+    o64 iret
 
 ; SyscallEntry: syscall 명령어 진입점
 global SyscallEntry
@@ -355,4 +355,4 @@ SyscallEntry:
     pop rax
 
     ; 7. iretq를 통한 복귀 (sysret보다 안전함)
-    iretq
+    o64 iret

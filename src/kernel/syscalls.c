@@ -107,6 +107,12 @@ int fstat(int file, struct stat *st) {
 int isatty(int file) { return 1; }
 int lseek(int file, int ptr, int dir) { return 0; }
 void _exit(int status) {
+    /* 시스템 콜을 직접 호출하는 인라인 어셈블리 (SYSCALL_EXIT = 2) */
+    __asm__ volatile (
+        "mov $2, %%rax\n"
+        "syscall"
+        : : : "rax", "rcx", "r11", "memory"
+    );
     while(1);
 }
 int kill(int n, int m) {

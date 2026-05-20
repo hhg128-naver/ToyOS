@@ -7,6 +7,7 @@
 #define SYSCALL_EXIT    0
 #define SYSCALL_WRITE   1
 #define SYSCALL_READ    2
+#define SYSCALL_WAIT    3
 
 /* 시스템 콜 초기화 (MSR 설정 등) */
 void InitSyscall();

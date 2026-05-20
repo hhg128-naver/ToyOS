@@ -6,6 +6,7 @@
 #include "pmm.h"
 #include <stdio.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 extern BootInfo *boot_info_global;
 
@@ -18,6 +19,8 @@ uint64_t current_kernel_stack_top = 0;
 void InitializeTaskSystem() {
     // 메인 커널 흐름을 0번 태스크로 등록
     Task* mainTask = (Task*)kmalloc(sizeof(Task));
+    if (!mainTask) return;
+    
     mainTask->id = task_count++;
     mainTask->state = TASK_RUNNING;
     mainTask->stack_base = NULL; // 이미 설정된 커널 스택 사용
@@ -50,12 +53,22 @@ Task* CreateTask(void (*entryPoint)()) {
     }
 
     Task* newTask = (Task*)kmalloc(sizeof(Task));
-    newTask->id = task_count;
-    newTask->state = TASK_READY;
-    newTask->pml4 = tasks[0]->pml4; // 커널 태스크는 기본적으로 커널 페이지 테이블 공유
+    if (!newTask) {
+        RestoreInterrupts(flags);
+        return NULL;
+    }
     
     // 태스크 스택 할당
     void* stack = kmalloc(TASK_STACK_SIZE);
+    if (!stack) {
+        kfree(newTask);
+        RestoreInterrupts(flags);
+        return NULL;
+    }
+
+    newTask->id = task_count;
+    newTask->state = TASK_READY;
+    newTask->pml4 = tasks[0]->pml4; // 커널 태스크는 기본적으로 커널 페이지 테이블 공유
     newTask->stack_base = stack;
     
     // 스택 최상단 (64비트 정렬)
@@ -99,30 +112,53 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     }
 
     Task* newTask = (Task*)kmalloc(sizeof(Task));
-    newTask->id = task_count;
-    newTask->state = TASK_READY;
+    if (!newTask) {
+        RestoreInterrupts(flags);
+        return NULL;
+    }
     
     /* 1. 독립된 프로세스 주소 공간(PML4) 생성 */
-    newTask->pml4 = VMM_CreateAddressSpace();
+    void* pml4 = VMM_CreateAddressSpace();
+    if (!pml4) {
+        kfree(newTask);
+        RestoreInterrupts(flags);
+        return NULL;
+    }
 
     /* 2. 커널 스택 할당 (인터럽트/시스템 콜 시 복귀용) */
     void* kstack = kmalloc(TASK_STACK_SIZE);
-    uint64_t kstack_top = (uint64_t)kstack + TASK_STACK_SIZE;
-    newTask->kernel_stack_top = kstack_top;
-    
+    if (!kstack) {
+        VMM_FreeAddressSpace(pml4);
+        kfree(newTask);
+        RestoreInterrupts(flags);
+        return NULL;
+    }
+
     /* 3. 유저 스택 할당 및 매핑 (태스크 전용 PML4에) */
     void* ustack_phys = PMM_AllocPage();
+    if (!ustack_phys) {
+        kfree(kstack);
+        VMM_FreeAddressSpace(pml4);
+        kfree(newTask);
+        RestoreInterrupts(flags);
+        return NULL;
+    }
     void* ustack_virt = (void*)0x00007FFFFFFF0000; // 안전한 캐노니컬 가상 주소
-    VMM_MapPageEx(newTask->pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx(pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
 
     /* 4. 유저 코드 영역 권한 업데이트 (PAGE_USER 추가) */
-    /* 현재는 커널 내부 함수를 사용하므로 해당 페이지를 찾아 권한만 확장합니다. 
-     * 함수가 페이지 경계에 걸쳐 있을 수 있으므로 2개 페이지 정도를 넉넉히 매핑합니다. */
     uint64_t code_page = (uint64_t)entryPoint & ~0xFFFULL;
-    VMM_MapPageEx(newTask->pml4, (void*)code_page, (void*)code_page, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
-    VMM_MapPageEx(newTask->pml4, (void*)(code_page + PAGE_SIZE), (void*)(code_page + PAGE_SIZE), PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx(pml4, (void*)code_page, (void*)code_page, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx(pml4, (void*)(code_page + PAGE_SIZE), (void*)(code_page + PAGE_SIZE), PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
 
+    uint64_t kstack_top = (uint64_t)kstack + TASK_STACK_SIZE;
+    newTask->id = task_count;
+    newTask->state = TASK_READY;
+    newTask->pml4 = pml4;
+    newTask->stack_base = kstack;
+    newTask->kernel_stack_top = kstack_top;
+    
     /* 5. 초기 컨텍스트 설정 (커널 스택에 저장) */
     Context* ctx = (Context*)(kstack_top - sizeof(Context));
     
@@ -154,32 +190,70 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
 Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     uint64_t flags = SaveAndDisableInterrupts();
 
-    if (task_count >= MAX_TASKS) {
+    /* 1. 종료된 태스크 슬롯 재사용 탐색 */
+    int slot = -1;
+    for (int i = 0; i < MAX_TASKS; i++) 
+    {
+        if (tasks[i] == NULL) 
+        {
+            slot = i;
+            break;
+        } 
+        // else if (tasks[i]->state == TASK_DEAD) 
+        // {
+        //     /* 기존 자원 해제 */
+        //     VMM_FreeAddressSpace(tasks[i]->pml4);
+        //     if (tasks[i]->stack_base) kfree(tasks[i]->stack_base);
+        //     tasks[i]->stack_base = NULL;
+        //     tasks[i]->pml4 = NULL;
+        //     slot = i;
+        //     break;
+        // }
+    }
+
+    if (slot == -1) {
         Printf("Error: Max tasks reached.\n");
         RestoreInterrupts(flags);
         return NULL;
     }
 
-    Task* newTask = (Task*)kmalloc(sizeof(Task));
-    newTask->id = task_count;
-    newTask->state = TASK_READY;
-    
-    /* ELF 로더에서 생성한 독립된 프로세스 주소 공간(PML4) 할당 */
-    newTask->pml4 = pml4;
-
     /* 커널 스택 할당 (인터럽트/시스템 콜 시 복귀용) */
     void* kstack = kmalloc(TASK_STACK_SIZE);
-    uint64_t kstack_top = (uint64_t)kstack + TASK_STACK_SIZE;
-    newTask->kernel_stack_top = kstack_top;
+    if (!kstack) {
+        RestoreInterrupts(flags);
+        return NULL;
+    }
     
     /* 유저 스택 할당 및 매핑 (태스크 전용 PML4에) */
     void* ustack_phys = PMM_AllocPage();
+    if (!ustack_phys) {
+        kfree(kstack);
+        RestoreInterrupts(flags);
+        return NULL;
+    }
     void* ustack_virt = (void*)0x00007FFFFFFF0000; // 안전한 캐노니컬 가상 주소
-    VMM_MapPageEx(newTask->pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx(pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
 
-    /* 유저 코드 영역 매핑은 ELF 로더(LoadELFProcess)에서 이미 완료되었으므로 생략 */
-
+    Task* newTask = tasks[slot];
+    if (newTask == NULL) {
+        newTask = (Task*)kmalloc(sizeof(Task));
+        if (!newTask) {
+            PMM_FreePage(ustack_phys); 
+            kfree(kstack);
+            RestoreInterrupts(flags);
+            return NULL;
+        }
+        tasks[slot] = newTask;
+        if (slot >= task_count) task_count = slot + 1;
+    }
+    
+    newTask->id = slot; // 슬롯 인덱스를 ID로 사용
+    newTask->pml4 = pml4;
+    newTask->stack_base = kstack;
+    uint64_t kstack_top = (uint64_t)kstack + TASK_STACK_SIZE;
+    newTask->kernel_stack_top = kstack_top;
+    
     /* 초기 컨텍스트 설정 (커널 스택에 저장) */
     Context* ctx = (Context*)(kstack_top - sizeof(Context));
     
@@ -200,10 +274,10 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     ctx->error_code = 0;
 
     newTask->rsp = (uint64_t)ctx;
-    tasks[task_count++] = newTask;
+    newTask->state = TASK_READY; // 모든 준비가 끝난 후 상태 변경
     
     RestoreInterrupts(flags);
-    printf("Created ELF User Task with Entry: %p, arg: %d\n", (void*)entryPoint, arg);
+    printf("Created ELF User Task at slot %d, Entry: %p\n", slot, (void*)entryPoint);
     
     return newTask;
 }
@@ -214,10 +288,38 @@ Task* GetCurrentTask() {
 
 void ExitCurrentTask() {
     uint64_t flags = SaveAndDisableInterrupts();
-    tasks[current_task_index]->state = TASK_SLEEP;
+    tasks[current_task_index]->state = TASK_DEAD;
     RestoreInterrupts(flags);
     Yield();
     while(1); // 절대 도달하지 않음
+}
+
+void WaitTask(uint64_t id) {
+    while (1) {
+        bool found = false;
+        uint64_t flags = SaveAndDisableInterrupts();
+        for (int i = 0; i < task_count; i++) 
+        {
+            if (tasks[i] && tasks[i]->id == id) 
+            {
+                if (tasks[i]->state == TASK_DEAD) 
+                {
+                    RestoreInterrupts(flags);
+                    return; // 태스크 종료됨
+                }
+                found = true;
+                break;
+            }
+        }
+        RestoreInterrupts(flags);
+        
+        if (!found) 
+        {
+            return; // 태스크가 아예 없음
+        }
+        
+        Yield(); // 아직 실행 중이면 양보
+    }
 }
 
 uint64_t Schedule(uint64_t current_rsp) {
@@ -238,10 +340,18 @@ uint64_t Schedule(uint64_t current_rsp) {
     tasks[current_task_index]->rsp = current_rsp;
 
     // 다음 READY 상태 태스크 선택 (라운드 로빈)
+    int next_index = current_task_index;
     do {
-        current_task_index = (current_task_index + 1) % task_count;
-    } while (tasks[current_task_index]->state == TASK_SLEEP);
+        next_index = (next_index + 1) % task_count;
+    } while (next_index != current_task_index && (tasks[next_index] == NULL || tasks[next_index]->state == TASK_SLEEP || tasks[next_index]->state == TASK_DEAD));
 
+    // 실행 가능한 태스크를 찾지 못한 경우 (자기 자신도 SLEEP/DEAD인 경우 등)
+    if (tasks[next_index] == NULL || tasks[next_index]->state == TASK_SLEEP || tasks[next_index]->state == TASK_DEAD) {
+        RestoreInterrupts(flags);
+        return current_rsp;
+    }
+
+    current_task_index = next_index;
     Task* next_task = tasks[current_task_index];
 
     // 페이지 테이블(CR3) 전환 - 주소 공간 격리의 핵심

@@ -265,7 +265,7 @@ void kmain(BootInfo *boot_info)
     
     /* 7. 멀티태스킹 초기화 */
     InitializeTaskSystem();
-    CreateTask(TaskB);
+    //CreateTask(TaskB);
     
     /* 8. IDE 드라이버 초기화 */
     IDE_Init();
@@ -275,8 +275,8 @@ void kmain(BootInfo *boot_info)
     
     /* 10. 유저 모드 테스트 태스크 생성 (격리 검증용으로 2개 생성) */
     printf("UserMain Address: %p\n", (void*)UserMain);
-    //CreateUserTask(UserMain, 111); // 첫 번째 유저 태스크
-    //CreateUserTask(UserMain, 222); // 두 번째 유저 태스크 (동일한 가상 주소 스택 사용)
+    // CreateUserTask(UserMain, 111); // 첫 번째 유저 태스크
+    // CreateUserTask(UserMain, 222); // 두 번째 유저 태스크 (동일한 가상 주소 스택 사용)
 
     EnableInterrupts();
     printf("System Ready with Multitasking.\n");
@@ -289,12 +289,6 @@ void kmain(BootInfo *boot_info)
 
     uint64_t countA = 0;
     while(1) {
-        PutChar(boot_info_global, 10, boot_info_global->vertical_resolution - 32, 'A', 0x00FF00FF, current_bg_color);
-        
-        if (countA % 1000000 == 0) {
-            char val = (countA / 1000000 % 10) + '0';
-            PutChar(boot_info_global, 30, boot_info_global->vertical_resolution - 32, val, 0x00FF00FF, current_bg_color);
-        }
-        countA++;
+
     }
 }

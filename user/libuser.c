@@ -19,6 +19,7 @@ static uint64_t syscall(uint64_t num, uint64_t arg1, uint64_t arg2, uint64_t arg
 
 #define SYSCALL_EXIT  0
 #define SYSCALL_WRITE 1
+#define SYSCALL_WAIT  3
 
 void print(const char* str) {
     syscall(SYSCALL_WRITE, (uint64_t)str, 0, 0);
@@ -27,6 +28,10 @@ void print(const char* str) {
 void exit(int code) {
     syscall(SYSCALL_EXIT, (uint64_t)code, 0, 0);
     while (1);
+}
+
+void wait(uint64_t pid) {
+    syscall(SYSCALL_WAIT, pid, 0, 0);
 }
 
 void sleep(int ms) {

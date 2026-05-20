@@ -48,9 +48,36 @@ uint64_t ExceptionHandler(Context *regs) {
         printf("Type: %s\n", exception_names[regs->interrupt_number]);
     }
 
-    // Newlib의 printf가 연동되어 있으므로 이를 활용해 상세 정보를 출력합니다.
     printf("Exception No: %d, Error Code: 0x%x\n", (int)regs->interrupt_number, (int)regs->error_code);
     printf("Faulting RIP: 0x%p, RSP: 0x%p\n", (void*)regs->rip, (void*)regs->rsp);
+
+    /* Page Fault (#PF, 14)인 경우 결함이 발생한 가상 주소(CR2) 출력 */
+    if (regs->interrupt_number == 14) {
+        uint64_t cr2;
+        __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+        printf("Faulting Address (CR2): 0x%p\n", (void*)cr2);
+        
+        /* 에러 코드 해석 */
+        printf("Cause: %s, %s, %s, %s, %s\n",
+            (regs->error_code & 1) ? "Page Present" : "Page Not Present",
+            (regs->error_code & 2) ? "Write Access" : "Read Access",
+            (regs->error_code & 4) ? "User Mode" : "Supervisor Mode",
+            (regs->error_code & 8) ? "Reserved Bit Violation" : "No Reserved Violation",
+            (regs->error_code & 16) ? "Instruction Fetch" : "Data Access"
+        );
+    }
+    /* General Protection Fault (#GP, 13)인 경우 에러 코드 해석 */
+    else if (regs->interrupt_number == 13) {
+        if (regs->error_code != 0) {
+            printf("Segment Selector Index: %d, Table: %s, Location: %s\n",
+                (int)(regs->error_code >> 3) & 0x1FFF,
+                (regs->error_code & 2) ? "IDT" : ((regs->error_code & 4) ? "LDT" : "GDT"),
+                (regs->error_code & 1) ? "External" : "Internal"
+            );
+        } else {
+            printf("Cause: Non-selector related violation (e.g., privilege, canonical address)\n");
+        }
+    }
 
     /* 예외 발생 시 일단 현재 태스크 정지 (무한 루프) */
     while(1);

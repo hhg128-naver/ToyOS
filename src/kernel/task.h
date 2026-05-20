@@ -9,7 +9,8 @@
 typedef enum {
     TASK_READY,
     TASK_RUNNING,
-    TASK_SLEEP
+    TASK_SLEEP,
+    TASK_DEAD
 } TaskState;
 
 // irq_common에서의 푸시 순서에 맞춘 컨텍스트 구조체
@@ -36,6 +37,7 @@ Task* CreateTask(void (*entryPoint)());
 Task* CreateUserTask(void (*entryPoint)(), int arg);
 Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4);
 void ExitCurrentTask();
+void WaitTask(uint64_t id);
 Task* GetCurrentTask();
 uint64_t Schedule(uint64_t current_rsp);
 void Yield();

@@ -263,6 +263,10 @@ public:
         Task* t = LoadELFProcess(filename, arg_val);
         if (t) {
             printf("Started process '%s' with PID %d\n", filename, (int)t->id);
+            // 유저 앱이 종료될 때까지 쉘 대기
+            extern void WaitTask(uint64_t id);
+            WaitTask(t->id);
+            printf("Process '%s' (PID %d) finished.\n", filename, (int)t->id);
         } else {
             printf("Failed to start process '%s'\n", filename);
         }
