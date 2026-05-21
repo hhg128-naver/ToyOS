@@ -1,0 +1,190 @@
+#include "mouse.h"
+#include <stdio.h>
+
+extern void outb(uint16_t port, uint8_t data);
+extern uint8_t inb(uint16_t port);
+
+static BootInfo *mouse_boot_info = NULL;
+static MouseState current_mouse_state = {400, 300, 0};
+static int prev_x = 400;
+static int prev_y = 300;
+static uint8_t mouse_cycle = 0;
+static uint8_t mouse_packet[3];
+
+/* 마우스 감도 (높을수록 느려짐, 1이 기본) */
+static int mouse_sensitivity = 2;
+
+/* 화살표 모양의 마우스 커서 비트맵 (12x19) */
+static const uint16_t mouse_cursor_bitmap[19] = {
+    0b1100000000000000,
+    0b1110000000000000,
+    0b1111000000000000,
+    0b1111100000000000,
+    0b1111110000000000,
+    0b1111111000000000,
+    0b1111111100000000,
+    0b1111111110000000,
+    0b1111111111000000,
+    0b1111111111100000,
+    0b1111111111110000,
+    0b1111111000000000,
+    0b1101111000000000,
+    0b1000111000000000,
+    0b0000011100000000,
+    0b0000011100000000,
+    0b0000001110000000,
+    0b0000001110000000,
+    0b0000000000000000
+};
+
+/* PS/2 컨트롤러 대기 */
+static void Mouse_Wait(uint8_t type)
+{
+    uint32_t timeout = 100000;
+    if (type == 0)
+    {
+        while (timeout--)
+        {
+            if ((inb(MOUSE_PORT_STATUS) & 1) == 1)
+            {
+                return;
+            }
+        }
+    }
+    else
+    {
+        while (timeout--)
+        {
+            if ((inb(MOUSE_PORT_STATUS) & 2) == 0)
+            {
+                return;
+            }
+        }
+    }
+}
+
+/* 마우스 명령 전송 */
+static void Mouse_Write(uint8_t data)
+{
+    Mouse_Wait(1);
+    outb(MOUSE_PORT_COMMAND, 0xD4);
+    Mouse_Wait(1);
+    outb(MOUSE_PORT_DATA, data);
+}
+
+/* 마우스 데이터 읽기 */
+static uint8_t Mouse_Read()
+{
+    Mouse_Wait(0);
+    return inb(MOUSE_PORT_DATA);
+}
+
+/* 마우스 커서 그리기 (비트맵 기반) */
+static void DrawMouseCursor(int x, int y, uint32_t color)
+{
+    if (mouse_boot_info == NULL)
+    {
+        return;
+    }
+
+    uint32_t *vidptr = mouse_boot_info->framebuffer;
+    int width = mouse_boot_info->horizontal_resolution;
+    int height = mouse_boot_info->vertical_resolution;
+
+    for (int dy = 0; dy < 19; dy++)
+    {
+        for (int dx = 0; dx < 12; dx++)
+        {
+            if ((mouse_cursor_bitmap[dy] >> (15 - dx)) & 0x01)
+            {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                {
+                    vidptr[ny * width + nx] = color;
+                }
+            }
+        }
+    }
+}
+
+void Mouse_Init(BootInfo *binfo)
+{
+    mouse_boot_info = binfo;
+
+    uint8_t status;
+
+    Mouse_Wait(1);
+    outb(MOUSE_PORT_COMMAND, 0xA8);
+
+    Mouse_Wait(1);
+    outb(MOUSE_PORT_COMMAND, 0x20);
+    Mouse_Wait(0);
+    status = (inb(MOUSE_PORT_DATA) | 2);
+    Mouse_Wait(1);
+    outb(MOUSE_PORT_COMMAND, 0x60);
+    Mouse_Wait(1);
+    outb(MOUSE_PORT_DATA, status);
+
+    Mouse_Write(0xF6);
+    Mouse_Read();
+
+    Mouse_Write(0xF4);
+    Mouse_Read();
+
+    DrawMouseCursor(current_mouse_state.x, current_mouse_state.y, 0x00FFFFFF);
+}
+
+void Mouse_Handler()
+{
+    uint8_t status = inb(MOUSE_PORT_STATUS);
+    
+    if ((status & 1) && (status & 0x20))
+    {
+        mouse_packet[mouse_cycle++] = inb(MOUSE_PORT_DATA);
+
+        if (mouse_cycle == 3)
+        {
+            mouse_cycle = 0;
+
+            current_mouse_state.buttons = mouse_packet[0] & 0x07;
+
+            int32_t x_offset = (int32_t)mouse_packet[1];
+            int32_t y_offset = (int32_t)mouse_packet[2];
+
+            if (mouse_packet[0] & 0x10) x_offset |= 0xFFFFFF00;
+            if (mouse_packet[0] & 0x20) y_offset |= 0xFFFFFF00;
+
+            // 이전 커서 지우기
+            DrawMouseCursor(prev_x, prev_y, 0x00000033);
+
+            // 감도 적용 (나누기를 통해 속도 조절)
+            current_mouse_state.x += (x_offset / mouse_sensitivity);
+            current_mouse_state.y -= (y_offset / mouse_sensitivity);
+
+            if (current_mouse_state.x < 0) current_mouse_state.x = 0;
+            if (current_mouse_state.y < 0) current_mouse_state.y = 0;
+            if (current_mouse_state.x >= (int)mouse_boot_info->horizontal_resolution)
+                current_mouse_state.x = mouse_boot_info->horizontal_resolution - 1;
+            if (current_mouse_state.y >= (int)mouse_boot_info->vertical_resolution)
+                current_mouse_state.y = mouse_boot_info->vertical_resolution - 1;
+            
+            // 새로운 커서 그리기 (흰색 화살표)
+            DrawMouseCursor(current_mouse_state.x, current_mouse_state.y, 0x00FFFFFF);
+            
+            prev_x = current_mouse_state.x;
+            prev_y = current_mouse_state.y;
+        }
+    }
+}
+
+MouseState GetMouseState()
+{
+    return current_mouse_state;
+}
+
+void Mouse_SetSensitivity(int sensitivity)
+{
+    if (sensitivity < 1) sensitivity = 1;
+    mouse_sensitivity = sensitivity;
+}

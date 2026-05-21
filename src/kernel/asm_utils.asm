@@ -12,7 +12,7 @@ global isr0, isr1, isr2, isr3, isr4, isr5, isr6, isr7, isr8, isr9
 global isr10, isr11, isr12, isr13, isr14, isr15, isr16, isr17, isr18, isr19
 global isr20, isr21, isr22, isr23, isr24, isr25, isr26, isr27, isr28, isr29
 global isr30, isr31
-global irq32, irq33  ; IRQ 0 (Timer), IRQ 1 (Keyboard)
+global irq32, irq33, irq44  ; IRQ 0 (Timer), IRQ 1 (Keyboard), IRQ 12 (Mouse)
 global outb, inb, outw, inw, insw
 extern ExceptionHandler
 extern InterruptHandler
@@ -135,7 +135,7 @@ inb:
 
 outw:
     mov ax, si      ; RDI(port), RSI(data) -> AX로 데이터 복사
-    mov dx, di      ; DX로 포트 번호 복사
+    mov dx, di      ; DX로 포트 번호 번호 복사
     out dx, ax
     ret
 
@@ -213,6 +213,7 @@ ISR_NOERR 31; Reserved
 
 IRQ 32                ; IRQ 0 (Timer)
 IRQ 33                ; IRQ 1 (Keyboard)
+IRQ 44                ; IRQ 12 (Mouse)
 
 isr_common:
     push rax

@@ -4,7 +4,8 @@
 #include "kernel.h"
 
 /* IDT 엔트리 구조체 (64비트) */
-struct IDTEntry {
+struct IDTEntry
+{
     uint16_t isr_low;    // ISR 주소 하위 16비트
     uint16_t kernel_cs;  // 커널 코드 세그먼트 (0x08)
     uint8_t  ist;        // Interrupt Stack Table (0이면 미사용)
@@ -15,7 +16,8 @@ struct IDTEntry {
 } __attribute__((packed));
 
 /* IDT Pointer 구조체 */
-struct IDTPtr {
+struct IDTPtr
+{
     uint16_t limit;
     uint64_t base;
 } __attribute__((packed));
@@ -35,5 +37,6 @@ extern void isr30(), isr31();
 /* 하드웨어 인터럽트 핸들러 (어셈블리에서 구현) */
 extern void irq32(); // IRQ 0: Timer
 extern void irq33(); // IRQ 1: Keyboard
+extern void irq44(); // IRQ 12: Mouse
 
 #endif

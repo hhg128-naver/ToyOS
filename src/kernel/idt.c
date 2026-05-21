@@ -3,7 +3,8 @@
 static struct IDTEntry idt[256];
 static struct IDTPtr idt_ptr;
 
-void SetIDTEntry(uint8_t vector, void* isr, uint8_t flags) {
+void SetIDTEntry(uint8_t vector, void* isr, uint8_t flags)
+{
     struct IDTEntry* entry = &idt[vector];
 
     uint64_t addr = (uint64_t)isr;
@@ -16,9 +17,11 @@ void SetIDTEntry(uint8_t vector, void* isr, uint8_t flags) {
     entry->reserved   = 0;
 }
 
-void InitIDT() {
+void InitIDT()
+{
     /* 모든 엔트리를 0으로 초기화 */
-    for (int i = 0; i < 256; i++) {
+    for (int i = 0; i < 256; i++)
+    {
         SetIDTEntry(i, 0, 0);
     }
 
@@ -59,6 +62,7 @@ void InitIDT() {
     /* 하드웨어 인터럽트 핸들러 등록 (벡터 32번부터) */
     SetIDTEntry(32, irq32, 0x8E); // IRQ 0: Timer
     SetIDTEntry(33, irq33, 0x8E); // IRQ 1: Keyboard
+    SetIDTEntry(44, irq44, 0x8E); // IRQ 12: Mouse
 
     /* IDT Pointer 설정 */
     idt_ptr.limit = (sizeof(struct IDTEntry) * 256) - 1;

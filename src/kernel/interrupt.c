@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "kernel.h"
 #include "keyboard.h"
+#include "mouse.h"
 #include "task.h"
 
 /* 어셈블리에서 정의된 포트 제어 함수 */
@@ -17,8 +18,10 @@ extern uint8_t inb(uint16_t port);
 /*
  * SendEOI: PIC에게 인터럽트 처리 완료를 알립니다.
  */
-void SendEOI(uint64_t irq) {
-    if (irq >= 40) {
+void SendEOI(uint64_t irq)
+{
+    if (irq >= 40)
+    {
         outb(PIC2_COMMAND, PIC_EOI);
     }
     outb(PIC1_COMMAND, PIC_EOI);
@@ -27,8 +30,10 @@ void SendEOI(uint64_t irq) {
 /*
  * ExceptionHandler: 모든 CPU 예외가 이곳으로 모입니다.
  */
-uint64_t ExceptionHandler(Context *regs) {
-    if (regs->interrupt_number == 3) {
+uint64_t ExceptionHandler(Context *regs)
+{
+    if (regs->interrupt_number == 3)
+    {
         return (uint64_t)regs;
     }
     
@@ -44,20 +49,20 @@ uint64_t ExceptionHandler(Context *regs) {
         "Reserved", "VMM Communication Exception", "Security Exception", "Reserved"
     };
 
-    if (regs->interrupt_number < 32) {
+    if (regs->interrupt_number < 32)
+    {
         printf("Type: %s\n", exception_names[regs->interrupt_number]);
     }
 
     printf("Exception No: %d, Error Code: 0x%x\n", (int)regs->interrupt_number, (int)regs->error_code);
     printf("Faulting RIP: 0x%p, RSP: 0x%p\n", (void*)regs->rip, (void*)regs->rsp);
 
-    /* Page Fault (#PF, 14)인 경우 결함이 발생한 가상 주소(CR2) 출력 */
-    if (regs->interrupt_number == 14) {
+    if (regs->interrupt_number == 14)
+    {
         uint64_t cr2;
         __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
         printf("Faulting Address (CR2): 0x%p\n", (void*)cr2);
         
-        /* 에러 코드 해석 */
         printf("Cause: %s, %s, %s, %s, %s\n",
             (regs->error_code & 1) ? "Page Present" : "Page Not Present",
             (regs->error_code & 2) ? "Write Access" : "Read Access",
@@ -66,20 +71,22 @@ uint64_t ExceptionHandler(Context *regs) {
             (regs->error_code & 16) ? "Instruction Fetch" : "Data Access"
         );
     }
-    /* General Protection Fault (#GP, 13)인 경우 에러 코드 해석 */
-    else if (regs->interrupt_number == 13) {
-        if (regs->error_code != 0) {
+    else if (regs->interrupt_number == 13)
+    {
+        if (regs->error_code != 0)
+        {
             printf("Segment Selector Index: %d, Table: %s, Location: %s\n",
                 (int)(regs->error_code >> 3) & 0x1FFF,
                 (regs->error_code & 2) ? "IDT" : ((regs->error_code & 4) ? "LDT" : "GDT"),
                 (regs->error_code & 1) ? "External" : "Internal"
             );
-        } else {
+        }
+        else
+        {
             printf("Cause: Non-selector related violation (e.g., privilege, canonical address)\n");
         }
     }
 
-    /* 예외 발생 시 일단 현재 태스크 정지 (무한 루프) */
     while(1);
     return (uint64_t)regs;
 }
@@ -87,18 +94,18 @@ uint64_t ExceptionHandler(Context *regs) {
 /*
  * InterruptHandler: 모든 하드웨어 인터럽트가 이곳으로 모입니다.
  */
-uint64_t InterruptHandler(Context *regs) {
+uint64_t InterruptHandler(Context *regs)
+{
     uint64_t irq = regs->interrupt_number;
     uint64_t next_rsp = (uint64_t)regs;
     static uint64_t system_ticks = 0;
 
-    if (irq == 32) {
-        // 타이머 인터럽트: 틱 증가
+    if (irq == 32)
+    {
         system_ticks++;
 
-        // 1초마다(100Hz 기준 100틱) 시각적 피드백 출력
-        if (system_ticks % 100 == 0) {
-            // kernel.h에 선언된 PutChar 사용
+        if (system_ticks % 100 == 0)
+        {
             extern BootInfo *boot_info_global;
             char sec_char = ((system_ticks / 100) % 10) + '0';
             PutChar(boot_info_global, 50, 10, 'T', 0x0000FF00, 0x00000033);
@@ -106,13 +113,17 @@ uint64_t InterruptHandler(Context *regs) {
             PutChar(boot_info_global, 70, 10, sec_char, 0x0000FF00, 0x00000033);
         }
 
-        // 타이머 인터럽트: 스케줄링 수행
         next_rsp = Schedule((uint64_t)regs);
-    } else if (irq == 33) {
+    }
+    else if (irq == 33)
+    {
         Keyboard_Handler();
     }
+    else if (irq == 44)
+    {
+        Mouse_Handler();
+    }
 
-    /* 처리가 끝나면 반드시 PIC에 EOI 전송 */
     SendEOI(irq);
 
     return next_rsp;
