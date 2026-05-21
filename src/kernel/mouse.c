@@ -11,8 +11,11 @@ static int prev_y = 300;
 static uint8_t mouse_cycle = 0;
 static uint8_t mouse_packet[3];
 
-/* 마우스 감도 (높을수록 느려짐, 1이 기본) */
+/* 마우스 감도 */
 static int mouse_sensitivity = 2;
+
+/* 마우스 커서 아래의 배경을 저장할 버퍼 (12x19) */
+static uint32_t mouse_back_buffer[19 * 12];
 
 /* 화살표 모양의 마우스 커서 비트맵 (12x19) */
 static const uint16_t mouse_cursor_bitmap[19] = {
@@ -79,7 +82,59 @@ static uint8_t Mouse_Read()
     return inb(MOUSE_PORT_DATA);
 }
 
-/* 마우스 커서 그리기 (비트맵 기반) */
+/* 현재 마우스 위치의 배경 저장 */
+static void SaveBackground(int x, int y)
+{
+    if (mouse_boot_info == NULL)
+    {
+        return;
+    }
+
+    uint32_t *vidptr = mouse_boot_info->framebuffer;
+    int width = mouse_boot_info->horizontal_resolution;
+    int height = mouse_boot_info->vertical_resolution;
+
+    for (int dy = 0; dy < 19; dy++)
+    {
+        for (int dx = 0; dx < 12; dx++)
+        {
+            int nx = x + dx;
+            int ny = y + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+            {
+                mouse_back_buffer[dy * 12 + dx] = vidptr[ny * width + nx];
+            }
+        }
+    }
+}
+
+/* 저장된 배경 복구 */
+static void RestoreBackground(int x, int y)
+{
+    if (mouse_boot_info == NULL)
+    {
+        return;
+    }
+
+    uint32_t *vidptr = mouse_boot_info->framebuffer;
+    int width = mouse_boot_info->horizontal_resolution;
+    int height = mouse_boot_info->vertical_resolution;
+
+    for (int dy = 0; dy < 19; dy++)
+    {
+        for (int dx = 0; dx < 12; dx++)
+        {
+            int nx = x + dx;
+            int ny = y + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+            {
+                vidptr[ny * width + nx] = mouse_back_buffer[dy * 12 + dx];
+            }
+        }
+    }
+}
+
+/* 마우스 커서 그리기 */
 static void DrawMouseCursor(int x, int y, uint32_t color)
 {
     if (mouse_boot_info == NULL)
@@ -132,6 +187,8 @@ void Mouse_Init(BootInfo *binfo)
     Mouse_Write(0xF4);
     Mouse_Read();
 
+    // 초기 배경 저장 후 커서 그리기
+    SaveBackground(current_mouse_state.x, current_mouse_state.y);
     DrawMouseCursor(current_mouse_state.x, current_mouse_state.y, 0x00FFFFFF);
 }
 
@@ -155,10 +212,10 @@ void Mouse_Handler()
             if (mouse_packet[0] & 0x10) x_offset |= 0xFFFFFF00;
             if (mouse_packet[0] & 0x20) y_offset |= 0xFFFFFF00;
 
-            // 이전 커서 지우기
-            DrawMouseCursor(prev_x, prev_y, 0x00000033);
+            // 1. 이전 위치의 배경 복구
+            RestoreBackground(prev_x, prev_y);
 
-            // 감도 적용 (나누기를 통해 속도 조절)
+            // 2. 좌표 업데이트
             current_mouse_state.x += (x_offset / mouse_sensitivity);
             current_mouse_state.y -= (y_offset / mouse_sensitivity);
 
@@ -169,7 +226,10 @@ void Mouse_Handler()
             if (current_mouse_state.y >= (int)mouse_boot_info->vertical_resolution)
                 current_mouse_state.y = mouse_boot_info->vertical_resolution - 1;
             
-            // 새로운 커서 그리기 (흰색 화살표)
+            // 3. 새로운 위치의 배경 저장
+            SaveBackground(current_mouse_state.x, current_mouse_state.y);
+
+            // 4. 새로운 위치에 커서 그리기
             DrawMouseCursor(current_mouse_state.x, current_mouse_state.y, 0x00FFFFFF);
             
             prev_x = current_mouse_state.x;
