@@ -68,6 +68,8 @@ void kmain(BootInfo *boot_info)
     FAT32_Init();
     Mouse_Init(boot_info);
 
+    Graphics_Init(boot_info);
+
     EnableInterrupts();
     printf("System Ready with Multitasking and Mouse support.\n");
 
@@ -76,6 +78,7 @@ void kmain(BootInfo *boot_info)
     DrawFillRect(boot_info, 150, 150, 200, 150, 0x0000FF00); // 초록색 채워진 네모
     DrawFillRect(boot_info, 200, 200, 200, 150, 0x000000FF); // 파란색 채워진 네모
     DrawRect(boot_info, 80, 80, 340, 290, 0x00FFFFFF);      // 흰색 테두리 네모
+    SwapBuffers(boot_info);
 
     CreateTask(Shell_Main);
 
