@@ -4,6 +4,7 @@
 #include "kernel.h"
 #include "vmm.h"
 #include "pmm.h"
+#include "graphics.h"
 
 /* Newlib 전용 힙 영역 설정 */
 #define NEWLIB_HEAP_START 0x02000000
@@ -11,22 +12,13 @@
 
 static char *heap_end = NULL;
 
-/* 
- * errno 정의: Newlib 표준 라이브러리와의 링크 호환성을 위해 직접 제공합니다.
- */
 int errno;
 int * __errno() { return &errno; }
 
-/* 
- * sbrk: 메모리 할당을 위한 시스템 콜. malloc()에서 호출됩니다.
- */
 void * sbrk(ptrdiff_t incr) {
     char *prev_heap_end;
-
     if (heap_end == NULL) {
         heap_end = (char *)NEWLIB_HEAP_START;
-        
-        /* 첫 호출 시 힙 영역 전체를 미리 매핑 (Static 방식) */
         for (uint64_t addr = NEWLIB_HEAP_START; addr < NEWLIB_HEAP_START + NEWLIB_HEAP_SIZE; addr += PAGE_SIZE) {
             void* phys = PMM_AllocPage();
             if (phys == NULL) {
@@ -36,14 +28,11 @@ void * sbrk(ptrdiff_t incr) {
             VMM_MapPage((void*)addr, phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
         }
     }
-
     prev_heap_end = heap_end;
-
     if (heap_end + incr > (char *)(NEWLIB_HEAP_START + NEWLIB_HEAP_SIZE)) {
         errno = ENOMEM;
         return (void *)-1;
     }
-
     heap_end += incr;
     return (void *)prev_heap_end;
 }
@@ -53,9 +42,15 @@ void * sbrk(ptrdiff_t incr) {
  */
 int write(int file, char *ptr, int len) {
     if (file == 1 || file == 2) { // stdout 또는 stderr
-        for (int i = 0; i < len; i++) {
-             char buf[2] = {ptr[i], '\0'};
-             Printf(buf);
+        if (g_ShellLayer != NULL) {
+            for (int i = 0; i < len; i++) {
+                Layer_TerminalPutChar(g_ShellLayer, ptr[i], 0x00FFFFFF, 0x00C6C6C6); 
+            }
+        } else {
+            for (int i = 0; i < len; i++) {
+                char buf[2] = {ptr[i], '\0'};
+                Printf(buf);
+            }
         }
         return len;
     }
@@ -65,25 +60,21 @@ int write(int file, char *ptr, int len) {
 
 #include "keyboard.h"
 
-/* 
- * read: 데이터 입력을 위한 시스템 콜. scanf() 등에서 호출됩니다. 
- */
 int read(int file, char *ptr, int len) {
     if (file == 0) { // stdin
         int i = 0;
         while (i < len) {
             char c = Keyboard_GetChar();
-            
-            /* 백스페이스 처리 */
             if (c == '\b') {
                 if (i > 0) {
                     i--;
+                    if (g_ShellLayer) Layer_TerminalPutChar(g_ShellLayer, '\b', 0x00FFFFFF, 0x00C6C6C6);
                 }
                 continue;
             }
-
             ptr[i] = c;
-            /* 만약 개행 문자를 받으면 읽기 중단 (라인 단위 입력 지원) */
+            if (g_ShellLayer) Layer_TerminalPutChar(g_ShellLayer, c, 0x00FFFFFF, 0x00C6C6C6);
+            
             if (ptr[i] == '\n') {
                 i++;
                 break;
@@ -96,9 +87,6 @@ int read(int file, char *ptr, int len) {
     return -1;
 }
 
-/* 
- * 기타 필수 스텁 함수들 (언더바 제거)
- */
 int close(int file) { return -1; }
 int fstat(int file, struct stat *st) {
     st->st_mode = S_IFCHR;
@@ -107,7 +95,6 @@ int fstat(int file, struct stat *st) {
 int isatty(int file) { return 1; }
 int lseek(int file, int ptr, int dir) { return 0; }
 void _exit(int status) {
-    /* 시스템 콜을 직접 호출하는 인라인 어셈블리 (SYSCALL_EXIT = 2) */
     __asm__ volatile (
         "mov $2, %%rax\n"
         "syscall"
@@ -119,11 +106,8 @@ int kill(int n, int m) {
     errno = EINVAL;
     return -1;
 }
-int getpid() {
-    return 1;
-}
+int getpid() { return 1; }
 
-/* Newlib 내부에서 _로 시작하는 이름을 찾을 경우를 위해 별칭 추가 (필요 시) */
 void * _sbrk(ptrdiff_t incr) __attribute__((alias("sbrk")));
 int _write(int file, char *ptr, int len) __attribute__((alias("write")));
 int _read(int file, char *ptr, int len) __attribute__((alias("read")));

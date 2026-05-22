@@ -7,6 +7,7 @@
 static uint32_t *back_buffer = NULL;
 static uint64_t back_buffer_size = 0;
 static LayerManager layer_manager;
+Layer *g_ShellLayer = NULL;
 
 void Graphics_Init(BootInfo *binfo)
 {
@@ -48,6 +49,8 @@ Layer* CreateLayer(int width, int height, uint32_t transparent_color)
     layer->transparent_color = transparent_color;
     layer->z_order = 0;
     layer->flags = 1; // Visible
+    layer->cursor_x = 0;
+    layer->cursor_y = 0;
 
     for (int i = 0; i < width * height; i++)
     {
@@ -111,6 +114,73 @@ void Layer_PrintString(Layer *layer, int x, int y, const char *str, uint32_t col
     }
 }
 
+/* --- 터미널 에뮬레이션 구현 --- */
+
+void Layer_ScrollUp(Layer *layer, uint32_t bg_color)
+{
+    int width = layer->width;
+    int height = layer->height;
+    int line_height = 16;
+
+    // 첫 줄 제외하고 위로 복사
+    uint32_t *dest = layer->buffer;
+    uint32_t *src = layer->buffer + line_height * width;
+    uint64_t copy_size = (uint64_t)(height - line_height) * width * sizeof(uint32_t);
+    
+    memmove(dest, src, copy_size);
+
+    // 마지막 줄 초기화
+    uint32_t *last_line = layer->buffer + (uint64_t)(height - line_height) * width;
+    for (uint64_t i = 0; i < (uint64_t)line_height * width; i++)
+    {
+        last_line[i] = bg_color;
+    }
+}
+
+void Layer_TerminalPutChar(Layer *layer, char c, uint32_t color, uint32_t bg_color)
+{
+    if (c == '\n')
+    {
+        layer->cursor_x = 0;
+        layer->cursor_y += 16;
+    }
+    else if (c == '\b')
+    {
+        if (layer->cursor_x >= 8)
+        {
+            layer->cursor_x -= 8;
+            Layer_DrawFillRect(layer, layer->cursor_x, layer->cursor_y, 8, 16, bg_color);
+        }
+    }
+    else
+    {
+        // 배경을 먼저 칠해줌 (글자 겹침 방지)
+        Layer_DrawFillRect(layer, layer->cursor_x, layer->cursor_y, 8, 16, bg_color);
+        Layer_PutChar(layer, layer->cursor_x, layer->cursor_y, c, color);
+        layer->cursor_x += 8;
+    }
+
+    if (layer->cursor_x + 8 > layer->width)
+    {
+        layer->cursor_x = 0;
+        layer->cursor_y += 16;
+    }
+
+    if (layer->cursor_y + 16 > layer->height)
+    {
+        Layer_ScrollUp(layer, bg_color);
+        layer->cursor_y -= 16;
+    }
+}
+
+void Layer_TerminalPrintString(Layer *layer, const char *str, uint32_t color, uint32_t bg_color)
+{
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        Layer_TerminalPutChar(layer, str[i], color, bg_color);
+    }
+}
+
 /* --- Window 구현 --- */
 
 Window* CreateWindow(int x, int y, int width, int height, const char *title)
@@ -118,7 +188,7 @@ Window* CreateWindow(int x, int y, int width, int height, const char *title)
     Window *win = (Window *)kmalloc(sizeof(Window));
     if (!win) return NULL;
 
-    win->layer = CreateLayer(width, height, 0xFF000001); // Magic transparent color
+    win->layer = CreateLayer(width, height, 0xFF000001); 
     if (!win->layer)
     {
         kfree(win);
@@ -129,10 +199,13 @@ Window* CreateWindow(int x, int y, int width, int height, const char *title)
     win->layer->y = y;
     win->is_dragging = 0;
 
-    // 창 배경 및 타이틀 바 그리기
     Layer_DrawFillRect(win->layer, 0, 0, width, height, 0x00C6C6C6);      // 창 배경
-    Layer_DrawFillRect(win->layer, 0, 0, width, 25, 0x00000080);       // 타이틀 바 (파란색)
-    Layer_PrintString(win->layer, 5, 5, title, 0x00FFFFFF);             // 제목 출력
+    Layer_DrawFillRect(win->layer, 0, 0, width, 25, 0x00000080);       // 타이틀 바
+    Layer_PrintString(win->layer, 5, 5, title, 0x00FFFFFF);             
+
+    // 터미널 시작 위치 설정 (타이틀 바 아래)
+    win->layer->cursor_x = 5;
+    win->layer->cursor_y = 30;
 
     LayerManager_AddLayer(win->layer);
     return win;
@@ -158,19 +231,14 @@ void LayerManager_AddLayer(Layer *layer)
 
 Layer* LayerManager_GetLayerAt(int x, int y)
 {
-    /* 상단 레이어부터 검색 (높은 인덱스/Z-order) */
     for (int i = layer_manager.top - 1; i >= 0; i--)
     {
         Layer *layer = layer_manager.layers[i];
         if (!layer || !(layer->flags & 1)) continue;
-
-        // 마우스 커서 레이어(보통 Z-order 1000)는 창 감지에서 제외
         if (layer->z_order >= 1000) continue;
-
         if (x >= layer->x && x < layer->x + layer->width &&
             y >= layer->y && y < layer->y + layer->height)
         {
-            // 투명 영역 체크
             int lx = x - layer->x;
             int ly = y - layer->y;
             if (layer->buffer[ly * layer->width + lx] != layer->transparent_color)
@@ -190,7 +258,6 @@ void LayerManager_Render(BootInfo *binfo)
     int screen_w = binfo->horizontal_resolution;
     int screen_h = binfo->vertical_resolution;
 
-    // Z-order 정렬
     for (int i = 0; i < layer_manager.top - 1; i++)
     {
         for (int j = i + 1; j < layer_manager.top; j++)
@@ -227,7 +294,7 @@ void LayerManager_Render(BootInfo *binfo)
     }
 }
 
-/* --- Direct Draw API (하위 호환) --- */
+/* --- Direct Draw API --- */
 void DrawPixel(BootInfo *binfo, int x, int y, uint32_t color)
 {
     if (back_buffer == NULL) return;

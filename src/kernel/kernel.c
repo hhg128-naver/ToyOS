@@ -43,7 +43,7 @@ void InitializeFPU()
 }
 
 /* 윈도우 목록 관리 */
-static Window *test_win = NULL;
+static Window *shell_win = NULL;
 
 /* GUI_Task: 화면 갱신 및 마우스 이벤트 처리 */
 void GUI_Task()
@@ -55,29 +55,28 @@ void GUI_Task()
         // 마우스 상호작용 (드래그 로직)
         if (ms.buttons & MOUSE_LEFT_BUTTON)
         {
-            if (test_win && !test_win->is_dragging)
+            if (shell_win && !shell_win->is_dragging)
             {
                 // 타이틀 바 영역(높이 25) 내에서 클릭했는지 확인
-                if (ms.x >= test_win->layer->x && ms.x < test_win->layer->x + test_win->layer->width &&
-                    ms.y >= test_win->layer->y && ms.y < test_win->layer->y + 25)
+                if (ms.x >= shell_win->layer->x && ms.x < shell_win->layer->x + shell_win->layer->width &&
+                    ms.y >= shell_win->layer->y && ms.y < shell_win->layer->y + 25)
                 {
-                    test_win->is_dragging = 1;
-                    test_win->drag_x = ms.x - test_win->layer->x;
-                    test_win->drag_y = ms.y - test_win->layer->y;
+                    shell_win->is_dragging = 1;
+                    shell_win->drag_x = ms.x - shell_win->layer->x;
+                    shell_win->drag_y = ms.y - shell_win->layer->y;
                     
-                    // 선택된 창을 최상단(마우스 바로 아래)으로 올리기
-                    Layer_SetZOrder(test_win->layer, 900);
+                    Layer_SetZOrder(shell_win->layer, 900);
                 }
             }
             
-            if (test_win && test_win->is_dragging)
+            if (shell_win && shell_win->is_dragging)
             {
-                Layer_Move(test_win->layer, ms.x - test_win->drag_x, ms.y - test_win->drag_y);
+                Layer_Move(shell_win->layer, ms.x - shell_win->drag_x, ms.y - shell_win->drag_y);
             }
         }
         else
         {
-            if (test_win) test_win->is_dragging = 0;
+            if (shell_win) shell_win->is_dragging = 0;
         }
 
         LayerManager_Render(boot_info_global);
@@ -120,17 +119,17 @@ void kmain(BootInfo *boot_info)
     /* 배경 레이어 생성 */
     Layer *bg_layer = CreateLayer(boot_info->horizontal_resolution, boot_info->vertical_resolution, 0xFF000001);
     Layer_DrawFillRect(bg_layer, 0, 0, boot_info->horizontal_resolution, boot_info->vertical_resolution, 0x00000033);
-    Layer_PrintString(bg_layer, 10, boot_info->vertical_resolution - 20, "ToyOS v0.1 - Welcome to Graphical User Interface", 0x00FFFFFF);
+    Layer_PrintString(bg_layer, 10, boot_info->vertical_resolution - 20, "ToyOS v0.1 - Terminal Emulation Mode", 0x00FFFFFF);
     LayerManager_AddLayer(bg_layer);
 
-    /* 테스트 윈도우 생성 */
-    test_win = CreateWindow(200, 150, 400, 300, "ToyOS Explorer");
+    /* 쉘 윈도우 생성 */
+    shell_win = CreateWindow(100, 100, 640, 480, "Terminal - Shell");
+    g_ShellLayer = shell_win->layer;
 
     CreateTask(GUI_Task);
     CreateTask(Shell_Main);
 
-    printf("\nToyOS is now running with Interactive GUI support.\n");
-    printf("You can drag the window title bar with your mouse.\n");
+    printf("\nToyOS Graphical Shell is now active.\n");
 
     while (1)
     {

@@ -18,6 +18,9 @@ typedef struct {
     uint32_t transparent_color; // 투명하게 처리할 색상 (Color Key)
     int z_order;                // 겹침 순서 (높을수록 상단)
     int flags;                  // 레이어 속성 (예: 표시 여부)
+    
+    /* 터미널 기능 확장 */
+    int cursor_x, cursor_y;     // 레이어 내 커서 위치
 } Layer;
 
 /* Window 구조체: 레이어를 포함하는 고수준 UI 구성 요소 */
@@ -47,6 +50,11 @@ void Layer_DrawFillRect(Layer *layer, int x, int y, int width, int height, uint3
 void Layer_PutChar(Layer *layer, int x, int y, char c, uint32_t color);
 void Layer_PrintString(Layer *layer, int x, int y, const char *str, uint32_t color);
 
+/* 터미널 에뮬레이션 기능 */
+void Layer_TerminalPutChar(Layer *layer, char c, uint32_t color, uint32_t bg_color);
+void Layer_TerminalPrintString(Layer *layer, const char *str, uint32_t color, uint32_t bg_color);
+void Layer_ScrollUp(Layer *layer, uint32_t bg_color);
+
 /* Window 관련 함수 */
 Window* CreateWindow(int x, int y, int width, int height, const char *title);
 
@@ -55,6 +63,9 @@ void LayerManager_Init();
 void LayerManager_AddLayer(Layer *layer);
 void LayerManager_Render(BootInfo *binfo);
 Layer* LayerManager_GetLayerAt(int x, int y);
+
+/* 전역 쉘 레이어 설정 (syscall용) */
+extern Layer *g_ShellLayer;
 
 /* Draw API (백 버퍼 직접 그리기) */
 void DrawPixel(BootInfo *binfo, int x, int y, uint32_t color);
