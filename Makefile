@@ -99,6 +99,7 @@ run-uefi: $(UEFI_TARGET) $(TARGET)
 	cp $(TARGET) iso/kernel
 	cp user/*.elf iso/ || true
 	qemu-system-x86_64 \
+		-m 512M \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive format=raw,file=fat:rw:iso \
 		-drive file=hdd.img,format=raw,if=ide
@@ -109,6 +110,7 @@ run-uefi-debug: $(UEFI_TARGET) $(TARGET)
 	cp $(TARGET) iso/kernel
 	cp user/*.elf iso/ || true
 	qemu-system-x86_64 \
+		-m 512M \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive format=raw,file=fat:rw:iso \
 		-drive file=hdd.img,format=raw,if=ide -s -S
@@ -124,6 +126,7 @@ run-uefi-hdd: $(UEFI_TARGET) $(TARGET)
 	sudo cp user/*.elf mnt/ || true
 	sudo umount mnt
 	qemu-system-x86_64 \
+		-m 512M \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive file=hdd.img,format=raw,if=ide
 
@@ -138,6 +141,7 @@ run-uefi-hdd-debug: $(UEFI_TARGET) $(TARGET)
 	sudo cp user/*.elf mnt/ || true
 	sudo umount mnt
 	qemu-system-x86_64 \
+		-m 512M \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive file=hdd.img,format=raw,if=ide -s -S
 

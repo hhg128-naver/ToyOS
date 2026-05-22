@@ -16,6 +16,7 @@
 #include "vfs.h"
 #include "fat32.h"
 #include "mouse.h"
+#include "graphics.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
@@ -69,6 +70,12 @@ void kmain(BootInfo *boot_info)
 
     EnableInterrupts();
     printf("System Ready with Multitasking and Mouse support.\n");
+
+    /* 그래픽 기능 테스트 */
+    DrawFillRect(boot_info, 100, 100, 200, 150, 0x00FF0000); // 빨간색 채워진 네모
+    DrawFillRect(boot_info, 150, 150, 200, 150, 0x0000FF00); // 초록색 채워진 네모
+    DrawFillRect(boot_info, 200, 200, 200, 150, 0x000000FF); // 파란색 채워진 네모
+    DrawRect(boot_info, 80, 80, 340, 290, 0x00FFFFFF);      // 흰색 테두리 네모
 
     CreateTask(Shell_Main);
 
