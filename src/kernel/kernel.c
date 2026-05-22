@@ -42,6 +42,50 @@ void InitializeFPU()
     Printf("FPU and SSE Initialized.\n");
 }
 
+/* 윈도우 목록 관리 */
+static Window *test_win = NULL;
+
+/* GUI_Task: 화면 갱신 및 마우스 이벤트 처리 */
+void GUI_Task()
+{
+    while (1)
+    {
+        MouseState ms = GetMouseState();
+        
+        // 마우스 상호작용 (드래그 로직)
+        if (ms.buttons & MOUSE_LEFT_BUTTON)
+        {
+            if (test_win && !test_win->is_dragging)
+            {
+                // 타이틀 바 영역(높이 25) 내에서 클릭했는지 확인
+                if (ms.x >= test_win->layer->x && ms.x < test_win->layer->x + test_win->layer->width &&
+                    ms.y >= test_win->layer->y && ms.y < test_win->layer->y + 25)
+                {
+                    test_win->is_dragging = 1;
+                    test_win->drag_x = ms.x - test_win->layer->x;
+                    test_win->drag_y = ms.y - test_win->layer->y;
+                    
+                    // 선택된 창을 최상단(마우스 바로 아래)으로 올리기
+                    Layer_SetZOrder(test_win->layer, 900);
+                }
+            }
+            
+            if (test_win && test_win->is_dragging)
+            {
+                Layer_Move(test_win->layer, ms.x - test_win->drag_x, ms.y - test_win->drag_y);
+            }
+        }
+        else
+        {
+            if (test_win) test_win->is_dragging = 0;
+        }
+
+        LayerManager_Render(boot_info_global);
+        SwapBuffers(boot_info_global);
+        Yield(); 
+    }
+}
+
 void kmain(BootInfo *boot_info)
 {
     Console_Init(boot_info);
@@ -66,24 +110,27 @@ void kmain(BootInfo *boot_info)
 
     IDE_Init();
     FAT32_Init();
+    
+    Graphics_Init(boot_info);
     Mouse_Init(boot_info);
 
-    Graphics_Init(boot_info);
-
     EnableInterrupts();
-    printf("System Ready with Multitasking and Mouse support.\n");
+    printf("System Ready with Interactive Windowing System.\n");
 
-    /* 그래픽 기능 테스트 */
-    DrawFillRect(boot_info, 100, 100, 200, 150, 0x00FF0000); // 빨간색 채워진 네모
-    DrawFillRect(boot_info, 150, 150, 200, 150, 0x0000FF00); // 초록색 채워진 네모
-    DrawFillRect(boot_info, 200, 200, 200, 150, 0x000000FF); // 파란색 채워진 네모
-    DrawRect(boot_info, 80, 80, 340, 290, 0x00FFFFFF);      // 흰색 테두리 네모
-    SwapBuffers(boot_info);
+    /* 배경 레이어 생성 */
+    Layer *bg_layer = CreateLayer(boot_info->horizontal_resolution, boot_info->vertical_resolution, 0xFF000001);
+    Layer_DrawFillRect(bg_layer, 0, 0, boot_info->horizontal_resolution, boot_info->vertical_resolution, 0x00000033);
+    Layer_PrintString(bg_layer, 10, boot_info->vertical_resolution - 20, "ToyOS v0.1 - Welcome to Graphical User Interface", 0x00FFFFFF);
+    LayerManager_AddLayer(bg_layer);
 
+    /* 테스트 윈도우 생성 */
+    test_win = CreateWindow(200, 150, 400, 300, "ToyOS Explorer");
+
+    CreateTask(GUI_Task);
     CreateTask(Shell_Main);
 
-    printf("\nToyOS is now running with Shell support.\n");
-    printf("Entering A loop...\n");
+    printf("\nToyOS is now running with Interactive GUI support.\n");
+    printf("You can drag the window title bar with your mouse.\n");
 
     while (1)
     {

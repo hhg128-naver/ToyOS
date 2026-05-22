@@ -6,9 +6,9 @@
 #include "vmm.h"
 #include "pmm.h"
 
-/* 힙 영역 설정: 16MB 지점부터 2MB 확보 (테스트용) */
+/* 힙 영역 설정: 16MB 지점부터 32MB 확보 (GUI 레이어 등을 수용하기 위해 확장) */
 #define HEAP_START 0x01000000
-#define HEAP_SIZE  (2 * 1024 * 1024) 
+#define HEAP_SIZE  (32 * 1024 * 1024) 
 
 /* 힙 블록 헤더 구조체 */
 typedef struct HeapBlock {
