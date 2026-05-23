@@ -8,7 +8,7 @@ void Heap_Init(BootInfo *binfo) {
     for (uint64_t addr = HEAP_START; addr < HEAP_START + HEAP_SIZE; addr += PAGE_SIZE) {
         void* phys = PMM_AllocPage();
         if (phys == NULL) return; // 메모리 부족
-        VMM_MapPage((void*)addr, phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+        VMM_MapPage((void*)addr, phys, PAGE_PRESENT | PAGE_WRITABLE);
     }
 
     /* 2. 초기 가용 리스트 생성 (전체 힙을 하나의 블록으로) */

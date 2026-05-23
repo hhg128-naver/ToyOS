@@ -59,7 +59,7 @@ void PMM_Init(BootInfo *binfo) {
     /* 4. Mandatory Protection: Mark 0MB ~ 4MB as used 
      * This covers: Null page, BIOS area, Kernel, Stack, and the Bitmap itself.
      */
-    for (uint64_t i = 0; i < (0x400000 / PAGE_SIZE); i++) {
+    for (uint64_t i = 0; i < (0x4000000 / PAGE_SIZE); i++) {
         if (Bitmap_Get(i) == 0) {
             Bitmap_Set(i);
             free_pages--;
