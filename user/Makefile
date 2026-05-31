@@ -5,10 +5,10 @@ AS = nasm
 # Newlib paths
 NEWLIB_INCLUDE = ../toolchain/install/x86_64-elf/include
 NEWLIB_LIB = ../toolchain/install/x86_64-elf/lib
-GCC_LIB = ../toolchain/install/lib/gcc/x86_64-elf/13.2.0
+RUNTIME_LIB = $(dir $(shell $(CC) -print-libgcc-file-name))
 
 CFLAGS = -target x86_64-elf -m64 -ffreestanding -fno-stack-protector -mno-red-zone -fno-pic -I$(NEWLIB_INCLUDE)
-LDFLAGS = -m elf_x86_64 -Ttext 0x40000000 -e _start -L$(NEWLIB_LIB) -L$(GCC_LIB)
+LDFLAGS = -m elf_x86_64 -Ttext 0x40000000 -e _start -L$(NEWLIB_LIB) -L$(RUNTIME_LIB)
 
 APPS = hello.elf counter.elf
 

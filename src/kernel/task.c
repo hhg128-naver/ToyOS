@@ -40,14 +40,14 @@ void InitializeTaskSystem() {
     __asm__ volatile("mov %%rsp, %0" : "=r"(dummy_rsp));
     current_kernel_stack_top = dummy_rsp;
     
-    Printf("Task System Initialized.\n");
+    kPrintf("Task System Initialized.\n");
 }
 
 Task* CreateTask(void (*entryPoint)()) {
     uint64_t flags = SaveAndDisableInterrupts();
 
     if (task_count >= MAX_TASKS) {
-        Printf("Error: Max tasks reached.\n");
+        kPrintf("Error: Max tasks reached.\n");
         RestoreInterrupts(flags);
         return NULL;
     }
@@ -99,7 +99,7 @@ Task* CreateTask(void (*entryPoint)()) {
     tasks[task_count++] = newTask;
     
     RestoreInterrupts(flags);
-    Printf("Created New Task.\n");
+    kPrintf("Created New Task.\n");
     
     return newTask;
 }
@@ -108,7 +108,7 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     uint64_t flags = SaveAndDisableInterrupts();
 
     if (task_count >= MAX_TASKS) {
-        Printf("Error: Max tasks reached.\n");
+        kPrintf("Error: Max tasks reached.\n");
         RestoreInterrupts(flags);
         return NULL;
     }
@@ -216,7 +216,7 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     }
 
     if (slot == -1) {
-        Printf("Error: Max tasks reached.\n");
+        kPrintf("Error: Max tasks reached.\n");
         RestoreInterrupts(flags);
         return NULL;
     }
@@ -333,7 +333,7 @@ uint64_t Schedule(uint64_t current_rsp) {
     // 시각적 피드백
     static int sched_count = 0;
     char spin[] = {'|', '/', '-', '\\'};
-    PutChar(boot_info_global, boot_info_global->horizontal_resolution - 16, 0, spin[(sched_count++ / 10) % 4], 0x00FF0000, 0x00000033);
+    kPutChar(boot_info_global, boot_info_global->horizontal_resolution - 16, 0, spin[(sched_count++ / 10) % 4], 0x00FF0000, 0x00000033);
 
     if (task_count <= 1) {
         RestoreInterrupts(flags);

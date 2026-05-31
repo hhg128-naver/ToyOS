@@ -49,7 +49,7 @@ int write(int file, char *ptr, int len) {
         } else {
             for (int i = 0; i < len; i++) {
                 char buf[2] = {ptr[i], '\0'};
-                Printf(buf);
+                kPrintf(buf);
             }
         }
         return len;

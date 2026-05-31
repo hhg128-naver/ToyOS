@@ -33,7 +33,7 @@ void Keyboard_Handler() {
 
             /* 에코 (화면에 즉시 출력) */
             char str[2] = {c, '\0'};
-            PrintString(boot_info_global, str, 0x00FFFFFF);
+            kPrintString(boot_info_global, str, 0x00FFFFFF);
         }
     }
 }

@@ -14,7 +14,7 @@ HOST_OBJCOPY  = objcopy
 # 라이브러리 파일 경로 직접 정의
 LIBC_A     = $(TOOLCHAIN_DIR)/x86_64-elf/lib/libc.a
 LIBM_A     = $(TOOLCHAIN_DIR)/x86_64-elf/lib/libm.a
-LIBGCC_A   = $(TOOLCHAIN_DIR)/lib/gcc/x86_64-elf/13.2.0/libgcc.a
+LIBGCC_A   = $(shell $(CLANG) -print-libgcc-file-name)
 
 # 디렉토리 정의
 SRC_DIR = src

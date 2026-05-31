@@ -15,9 +15,9 @@ void Console_Init(BootInfo *binfo)
     ClearScreen(binfo, 0x00000033);
 }
 
-void Printf(const char *str)
+void kPrintf(const char *str)
 {
-    PrintString(boot_info_global, str, 0x00FFFFFF);
+    kPrintString(boot_info_global, str, 0x00FFFFFF);
 }
 
 void ClearScreen(BootInfo *binfo, uint32_t color)
@@ -32,7 +32,7 @@ void ClearScreen(BootInfo *binfo, uint32_t color)
     current_bg_color = color;
 }
 
-void PutChar(BootInfo *binfo, int x, int y, char c, uint32_t color, uint32_t bg_color)
+void kPutChar(BootInfo *binfo, int x, int y, char c, uint32_t color, uint32_t bg_color)
 {
     unsigned char *font_ptr = &EnglishFont[(unsigned char)c * 16];
     uint32_t *vidptr = binfo->framebuffer;
@@ -74,7 +74,7 @@ static void ScrollUp(BootInfo *binfo)
     }
 }
 
-void PrintString(BootInfo *binfo, const char *str, uint32_t color)
+void kPrintString(BootInfo *binfo, const char *str, uint32_t color)
 {
     for (int i = 0; str[i] != '\0'; i++)
     {
@@ -88,12 +88,12 @@ void PrintString(BootInfo *binfo, const char *str, uint32_t color)
             if (cursor_x >= 8)
             {
                 cursor_x -= 8;
-                PutChar(binfo, cursor_x, cursor_y, ' ', current_bg_color, current_bg_color);
+                kPutChar(binfo, cursor_x, cursor_y, ' ', current_bg_color, current_bg_color);
             }
         }
         else
         {
-            PutChar(binfo, cursor_x, cursor_y, str[i], color, current_bg_color);
+            kPutChar(binfo, cursor_x, cursor_y, str[i], color, current_bg_color);
             cursor_x += 8;
         }
 
@@ -125,12 +125,12 @@ void PrintStringLen(BootInfo *binfo, const char *str, uint32_t len, uint32_t col
             if (cursor_x >= 8)
             {
                 cursor_x -= 8;
-                PutChar(binfo, cursor_x, cursor_y, ' ', current_bg_color, current_bg_color);
+                kPutChar(binfo, cursor_x, cursor_y, ' ', current_bg_color, current_bg_color);
             }
         }
         else
         {
-            PutChar(binfo, cursor_x, cursor_y, str[i], color, current_bg_color);
+            kPutChar(binfo, cursor_x, cursor_y, str[i], color, current_bg_color);
             cursor_x += 8;
         }
 

@@ -37,7 +37,7 @@ uint64_t ExceptionHandler(Context *regs)
         return (uint64_t)regs;
     }
     
-    Printf("\n[CPU EXCEPTION OCCURRED]\n");
+    kPrintf("\n[CPU EXCEPTION OCCURRED]\n");
     static const char* exception_names[] = {
         "#DE Divide Error", "#DB Debug", "NMI Interrupt", "#BP Breakpoint",
         "#OF Overflow", "#BR BOUND Range Exceeded", "#UD Invalid Opcode", "#NM Device Not Available",
@@ -108,9 +108,9 @@ uint64_t InterruptHandler(Context *regs)
         {
             extern BootInfo *boot_info_global;
             char sec_char = ((system_ticks / 100) % 10) + '0';
-            PutChar(boot_info_global, 50, 10, 'T', 0x0000FF00, 0x00000033);
-            PutChar(boot_info_global, 60, 10, ':', 0x0000FF00, 0x00000033);
-            PutChar(boot_info_global, 70, 10, sec_char, 0x0000FF00, 0x00000033);
+            kPutChar(boot_info_global, 50, 10, 'T', 0x0000FF00, 0x00000033);
+            kPutChar(boot_info_global, 60, 10, ':', 0x0000FF00, 0x00000033);
+            kPutChar(boot_info_global, 70, 10, sec_char, 0x0000FF00, 0x00000033);
         }
 
         next_rsp = Schedule((uint64_t)regs);

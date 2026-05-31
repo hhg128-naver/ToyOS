@@ -39,7 +39,7 @@ void InitializeFPU()
     WriteCR4(cr4);
 
     InitFPU();
-    Printf("FPU and SSE Initialized.\n");
+    kPrintf("FPU and SSE Initialized.\n");
 }
 
 /* 윈도우 목록 관리 */
