@@ -124,9 +124,9 @@ void kmain(BootInfo *boot_info)
 
     /* 쉘 윈도우 생성 */
     shell_win = CreateWindow(100, 100, 640, 480, "Terminal - Shell");
-    g_ShellLayer = shell_win->layer;
+    //g_ShellLayer = shell_win->layer;
 
-    CreateTask(GUI_Task);
+    //CreateTask(GUI_Task);
     CreateTask(Shell_Main);
 
     printf("\nToyOS Graphical Shell is now active.\n");

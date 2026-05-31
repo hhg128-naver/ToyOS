@@ -11,6 +11,7 @@ Dependency.dep
 iso/
 
 # Editor specific
+.vs/
 .vscode/
 *.swp
 *.swo
