@@ -5,7 +5,7 @@ global user_rsp_temp
 user_rsp_temp: dq 0
 
 section .text
-global LoadGDT
+global sLoadGDT
 global LoadIDT
 global LoadPageTable
 global isr0, isr1, isr2, isr3, isr4, isr5, isr6, isr7, isr8, isr9
@@ -19,9 +19,9 @@ extern InterruptHandler
 extern current_kernel_stack_top
 extern SyscallHandler
 
-; LoadGDT(struct GDTPtr *gdt_ptr)
+; sLoadGDT(struct GDTPtr *gdt_ptr)
 ; RDI: gdt_ptr 주소
-LoadGDT:
+sLoadGDT:
     lgdt [rdi]          ; GDT 로드
 
     ; 커널 데이터 세그먼트 (0x10) 설정

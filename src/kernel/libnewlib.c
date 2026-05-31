@@ -1,6 +1,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <stdio.h>
 #include "kernel.h"
 #include "vmm.h"
 #include "pmm.h"
@@ -17,6 +18,10 @@ int* __errno() { return &errno; }
 
 void* sbrk(ptrdiff_t incr)
 {
+	char logStr[100];
+	sprintf(logStr, "sbrk called with incr: %d\n", (int)incr);
+	kPrintf(logStr);
+
 	char* prev_heap_end;
 	if (heap_end == NULL)
 	{

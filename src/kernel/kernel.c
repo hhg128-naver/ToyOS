@@ -93,11 +93,13 @@ void kmain(BootInfo *boot_info)
     InitIDT();
     InitSyscall();
 
+	// Physical Memory Manager와 Virtual Memory Manager 초기화는 GDT/IDT 설정 이후에 수행되어야 합니다.
     PMM_Init(boot_info);
     VMM_Init(boot_info);
 
     Heap_Init(boot_info);
 
+	// c++ 전역 객체의 생성자를 호출하여 초기화 작업 수행 (예: std::string, std::vector 등)
     call_constructors();
 
     InitializeFPU();
@@ -133,6 +135,7 @@ void kmain(BootInfo *boot_info)
 
     while (1)
     {
+        __asm__ volatile("hlt");
         __asm__ volatile("hlt");
     }
 }

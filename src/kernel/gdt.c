@@ -42,10 +42,8 @@ void InitGDT() {
     /* NULL Descriptor */
     SetGDTEntry(0, 0, 0, 0, 0);
 
-    /* Kernel Code Segment (64-bit) - Index 1 (0x08) */
+    /* Kernel Code/Data Segment (64-bit) - Index 1(0x08)/2(0x10)*/
     SetGDTEntry(1, 0, 0xFFFFFFFF, 0x9A, 0xA0);
-
-    /* Kernel Data Segment (64-bit) - Index 2 (0x10) */
     SetGDTEntry(2, 0, 0xFFFFFFFF, 0x92, 0xC0);
 
     /* User Data Segment (64-bit) - Index 3 (0x18 | 3 = 0x1B)
@@ -59,7 +57,10 @@ void InitGDT() {
     SetGDTEntry(4, 0, 0xFFFFFFFF, 0xFB, 0xA0);
 
     /* TSS Descriptor - Index 5 (0x28) */
-    for (int i = 0; i < sizeof(struct TSS); i++) ((char*)&tss)[i] = 0;
+    for (int i = 0; i < sizeof(struct TSS); i++)
+    {
+        ((char*)&tss)[i] = 0;
+    }
     tss.iopb_offset = sizeof(struct TSS);
     SetTSSEntry(5, (uint64_t)&tss, sizeof(struct TSS) - 1, 0x89);
 
@@ -68,7 +69,7 @@ void InitGDT() {
     gdt_ptr.base  = (uint64_t)&gdt;
 
     /* GDT 로드 */
-    LoadGDT(&gdt_ptr);
+    sLoadGDT(&gdt_ptr);
 
     /* TSS 로드 */
     LoadTSS(0x28);

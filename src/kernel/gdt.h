@@ -62,7 +62,7 @@ void InitGDT();
 void SetTSSStack(uint64_t stack_addr);
 
 /* 어셈블리에서 정의할 함수들 */
-extern void LoadGDT(struct GDTPtr *gdt_ptr);
+extern void sLoadGDT(struct GDTPtr *gdt_ptr);
 extern void LoadTSS(uint16_t tss_selector);
 
 #endif

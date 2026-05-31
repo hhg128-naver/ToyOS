@@ -15,7 +15,7 @@
         {
             "label": "run UEFI debug (QEMU)",
             "type": "shell",
-            "command": "make run-uefi-debug",
+            "command": "make run-uefi-hdd-debug",
             "isBackground": true,
             "problemMatcher": {
                 "pattern": {

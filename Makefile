@@ -93,28 +93,6 @@ $(UEFI_TARGET): bootx64.so
 
 .PHONY: all clean run-uefi
 
-run-uefi: $(UEFI_TARGET) $(TARGET)
-	mkdir -p iso/EFI/BOOT
-	cp $(UEFI_TARGET) iso/EFI/BOOT/BOOTX64.EFI
-	cp $(TARGET) iso/kernel
-	cp user/*.elf iso/ || true
-	qemu-system-x86_64 \
-		-m 512M \
-		-bios /usr/share/ovmf/OVMF.fd \
-		-drive format=raw,file=fat:rw:iso \
-		-drive file=hdd.img,format=raw,if=ide
-
-run-uefi-debug: $(UEFI_TARGET) $(TARGET)
-	mkdir -p iso/EFI/BOOT
-	cp $(UEFI_TARGET) iso/EFI/BOOT/BOOTX64.EFI
-	cp $(TARGET) iso/kernel
-	cp user/*.elf iso/ || true
-	qemu-system-x86_64 \
-		-m 512M \
-		-bios /usr/share/ovmf/OVMF.fd \
-		-drive format=raw,file=fat:rw:iso \
-		-drive file=hdd.img,format=raw,if=ide -s -S
-
 run-uefi-hdd: $(UEFI_TARGET) $(TARGET)
 	mkdir -p iso/EFI/BOOT
 	cp $(UEFI_TARGET) iso/EFI/BOOT/BOOTX64.EFI
