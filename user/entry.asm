@@ -1,7 +1,7 @@
 [BITS 64]
 global _start
 extern main
-extern exit
+extern _exit
 
 section .text
 _start:
@@ -10,7 +10,7 @@ _start:
     
     ; exit with return value of main
     mov rdi, rax
-    call exit
+    call _exit
 
     ; should never reach here
 .hang:

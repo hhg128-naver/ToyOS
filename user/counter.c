@@ -1,14 +1,11 @@
-#include "libuser.h"
+#include <stdio.h>
 
 int main(int arg) {
     for (int i = 0; i <= 4; i++) {
-        print("Counter: ");
-        // 간단한 숫자 출력
-        char num[2] = { '0' + i, '\0' };
-        print(num);
-        print("\n");
-        sleep(500); // 약간의 딜레이
+        printf("Counter: %d\n", i);
+        // Simple delay loop
+        for (volatile int j = 0; j < 50000000; j++);
     }
-    print("Counter Done!\n");
+    printf("Counter Done!\n");
     return 0;
 }

@@ -28,6 +28,8 @@ typedef struct Task {
     void* stack_base;      // 할당된 스택 메모리 주소
     uint64_t kernel_stack_top; // 커널 스택 최상단 주소
     void* pml4;            // 태스크전용 페이지 테이블 (주소 공간)
+    uint64_t heap_start;   // 유저 힙 시작 주소
+    uint64_t heap_end;     // 유저 힙 현재 끝 주소
 } Task;
 
 extern uint64_t current_kernel_stack_top;

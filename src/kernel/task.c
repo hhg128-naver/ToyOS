@@ -94,6 +94,8 @@ Task* CreateTask(void (*entryPoint)()) {
     ctx->error_code = 0;
 
     newTask->rsp = (uint64_t)ctx;
+    newTask->heap_start = 0x60000000;
+    newTask->heap_end = 0x60000000;
     tasks[task_count++] = newTask;
     
     RestoreInterrupts(flags);
@@ -179,6 +181,8 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     ctx->error_code = 0;
 
     newTask->rsp = (uint64_t)ctx;
+    newTask->heap_start = 0x60000000;
+    newTask->heap_end = 0x60000000;
     tasks[task_count++] = newTask;
     
     RestoreInterrupts(flags);

@@ -2,6 +2,10 @@
 #include "kernel.h"
 #include "gdt.h"
 #include "task.h"
+#include "keyboard.h"
+#include "vmm.h"
+#include "pmm.h"
+#include "console.h"
 
 /* 어셈블리 함수 선언 (asm_utils.asm) */
 extern void WriteMSR(uint64_t msr, uint64_t value);
@@ -46,9 +50,33 @@ void InitSyscall() {
 uint64_t SyscallHandler(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
     switch (syscall_num) {
         case SYSCALL_WRITE:
-            /* arg1: 문자열 주소 */
-            Printf((const char*)arg1);
-            return 0;
+        {
+            /* arg1: 문자열 주소, arg2: 길이 */
+            const char* str = (const char*)arg1;
+            uint64_t len = arg2;
+            if (len == 0) {
+                Printf(str);
+            } else {
+                PrintStringLen(boot_info_global, str, (uint32_t)len, 0x00FFFFFF);
+            }
+            return len;
+        }
+
+        case SYSCALL_READ:
+        {
+            /* arg1: 버퍼 주소, arg2: 길이 */
+            char* buf = (char*)arg1;
+            uint64_t len = arg2;
+            uint64_t i = 0;
+            for (i = 0; i < len; i++) {
+                buf[i] = Keyboard_GetChar();
+                if (buf[i] == '\n') {
+                    i++;
+                    break;
+                }
+            }
+            return i;
+        }
 
         case SYSCALL_EXIT:
             Printf("\n[Kernel] User Task Exited.\n");
@@ -59,6 +87,29 @@ uint64_t SyscallHandler(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint
             /* arg1: 대기할 태스크 ID */
             WaitTask(arg1);
             return 0;
+
+        case SYSCALL_SBRK:
+        {
+            /* arg1: 증가량 */
+            int64_t increment = (int64_t)arg1;
+            Task* current = GetCurrentTask();
+            uint64_t old_heap_end = current->heap_end;
+            uint64_t new_heap_end = old_heap_end + increment;
+
+            if (increment > 0) {
+                // 페이지 경계에 맞춰 할당
+                uint64_t start_page = (old_heap_end + 0xFFF) & ~0xFFFULL;
+                uint64_t end_page = (new_heap_end + 0xFFF) & ~0xFFFULL;
+                for (uint64_t addr = start_page; addr < end_page; addr += 0x1000) {
+                    void* phys = PMM_AllocPage();
+                    if (phys) {
+                        VMM_MapPageEx(current->pml4, (void*)addr, phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+                    }
+                }
+            }
+            current->heap_end = new_heap_end;
+            return old_heap_end;
+        }
 
         default:
             return (uint64_t)-1;

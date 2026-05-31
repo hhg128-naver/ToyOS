@@ -110,3 +110,40 @@ void PrintString(BootInfo *binfo, const char *str, uint32_t color)
         }
     }
 }
+
+void PrintStringLen(BootInfo *binfo, const char *str, uint32_t len, uint32_t color)
+{
+    for (uint32_t i = 0; i < len; i++)
+    {
+        if (str[i] == '\n')
+        {
+            cursor_x = 0;
+            cursor_y += 16;
+        }
+        else if (str[i] == '\b')
+        {
+            if (cursor_x >= 8)
+            {
+                cursor_x -= 8;
+                PutChar(binfo, cursor_x, cursor_y, ' ', current_bg_color, current_bg_color);
+            }
+        }
+        else
+        {
+            PutChar(binfo, cursor_x, cursor_y, str[i], color, current_bg_color);
+            cursor_x += 8;
+        }
+
+        if (cursor_x + 8 > (int)binfo->horizontal_resolution)
+        {
+            cursor_x = 0;
+            cursor_y += 16;
+        }
+
+        if (cursor_y + 16 > (int)binfo->vertical_resolution)
+        {
+            ScrollUp(binfo);
+            cursor_y -= 16;
+        }
+    }
+}

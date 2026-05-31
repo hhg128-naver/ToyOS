@@ -22,6 +22,9 @@ void PutChar(BootInfo *binfo, int x, int y, char c, uint32_t color, uint32_t bg_
 /* PrintString: 현재 커서 위치부터 문자열을 출력합니다. */
 void PrintString(BootInfo *binfo, const char *str, uint32_t color);
 
+/* PrintStringLen: 지정된 길이만큼 문자열을 출력합니다. */
+void PrintStringLen(BootInfo *binfo, const char *str, uint32_t len, uint32_t color);
+
 /* ClearScreen: 화면을 특정 색상으로 초기화합니다. */
 void ClearScreen(BootInfo *binfo, uint32_t color);
 
