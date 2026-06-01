@@ -17,6 +17,7 @@
 #include "fat32.h"
 #include "mouse.h"
 #include "graphics.h"
+#include "apic.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
@@ -105,7 +106,11 @@ void kmain(BootInfo *boot_info)
     InitializeFPU();
 
     PIC_Init();
-    PIT_Init(100);
+
+    /* Local APIC 활성화 및 APIC Timer로 PIT 대체 */
+    APIC_Init();
+    APIC_Timer_Init(100); /* 100Hz (10ms 주기) */
+    PIC_MaskIRQ(0);       /* PIT(IRQ0) 마스킹 — APIC Timer가 타이머 역할 수행 */
 
     InitializeTaskSystem();
 

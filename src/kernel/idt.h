@@ -38,5 +38,6 @@ extern void isr30(), isr31();
 extern void irq32(); // IRQ 0: Timer
 extern void irq33(); // IRQ 1: Keyboard
 extern void irq44(); // IRQ 12: Mouse
+extern void irq48(); // APIC Timer
 
 #endif

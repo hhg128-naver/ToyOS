@@ -30,3 +30,35 @@ void PIC_Init() {
     outb(PIC1_DATA, 0x00);
     outb(PIC2_DATA, 0x00);
 }
+
+/*
+ * PIC_MaskIRQ: 특정 IRQ 라인을 마스킹(비활성화)합니다.
+ * @param irq: 마스킹할 IRQ 번호 (0~15)
+ */
+void PIC_MaskIRQ(uint8_t irq) {
+    uint16_t port;
+    if (irq < 8) {
+        port = PIC1_DATA;
+    } else {
+        port = PIC2_DATA;
+        irq -= 8;
+    }
+    uint8_t mask = inb(port) | (1 << irq);
+    outb(port, mask);
+}
+
+/*
+ * PIC_UnmaskIRQ: 특정 IRQ 라인을 언마스킹(활성화)합니다.
+ * @param irq: 언마스킹할 IRQ 번호 (0~15)
+ */
+void PIC_UnmaskIRQ(uint8_t irq) {
+    uint16_t port;
+    if (irq < 8) {
+        port = PIC1_DATA;
+    } else {
+        port = PIC2_DATA;
+        irq -= 8;
+    }
+    uint8_t mask = inb(port) & ~(1 << irq);
+    outb(port, mask);
+}

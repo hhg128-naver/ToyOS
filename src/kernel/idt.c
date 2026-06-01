@@ -63,6 +63,7 @@ void InitIDT()
     SetIDTEntry(32, irq32, 0x8E); // IRQ 0: Timer
     SetIDTEntry(33, irq33, 0x8E); // IRQ 1: Keyboard
     SetIDTEntry(44, irq44, 0x8E); // IRQ 12: Mouse
+    SetIDTEntry(48, irq48, 0x8E); // APIC Timer
 
     /* IDT Pointer 설정 */
     idt_ptr.limit = (sizeof(struct IDTEntry) * 256) - 1;

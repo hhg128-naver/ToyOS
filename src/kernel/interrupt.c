@@ -3,6 +3,7 @@
 #include "keyboard.h"
 #include "mouse.h"
 #include "task.h"
+#include "apic.h"
 
 /* 어셈블리에서 정의된 포트 제어 함수 */
 extern void outb(uint16_t port, uint8_t data);
@@ -114,6 +115,25 @@ uint64_t InterruptHandler(Context *regs)
         }
 
         next_rsp = Schedule((uint64_t)regs);
+    }
+    else if (irq == 48) /* APIC Timer */
+    {
+        system_ticks++;
+
+        if (system_ticks % 100 == 0)
+        {
+            extern BootInfo *boot_info_global;
+            char sec_char = ((system_ticks / 100) % 10) + '0';
+            kPutChar(boot_info_global, 50, 10, 'T', 0x0000FF00, 0x00000033);
+            kPutChar(boot_info_global, 60, 10, ':', 0x0000FF00, 0x00000033);
+            kPutChar(boot_info_global, 70, 10, sec_char, 0x0000FF00, 0x00000033);
+        }
+
+        next_rsp = Schedule((uint64_t)regs);
+
+        /* APIC Timer는 PIC EOI가 아닌 APIC EOI를 사용 */
+        APIC_SendEOI();
+        return next_rsp;
     }
     else if (irq == 33)
     {
