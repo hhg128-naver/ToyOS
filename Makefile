@@ -104,6 +104,7 @@ run-uefi-hdd: $(UEFI_TARGET) $(TARGET)
 	sudo cp user/*.elf mnt/ || true
 	sudo umount mnt
 	qemu-system-x86_64 \
+		-smp 4 \
 		-m 512M \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive file=hdd.img,format=raw,if=ide
@@ -119,6 +120,7 @@ run-uefi-hdd-debug: $(UEFI_TARGET) $(TARGET)
 	sudo cp user/*.elf mnt/ || true
 	sudo umount mnt
 	qemu-system-x86_64 \
+		-smp 4 \
 		-m 512M \
 		-bios /usr/share/ovmf/OVMF.fd \
 		-drive file=hdd.img,format=raw,if=ide -s -S

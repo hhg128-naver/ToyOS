@@ -20,6 +20,7 @@ typedef struct
     void *mmap;                     // UEFI 메모리 맵 데이터 버퍼 주소
     uint64_t mmap_size;             // 메모리 맵 전체 버퍼 크기
     uint64_t descriptor_size;       // 각 메모리 기술자(Descriptor)의 크기
+    void *rsdp;                     // ACPI RSDP(Root System Description Pointer) 주소
 } BootInfo;
 
 /*

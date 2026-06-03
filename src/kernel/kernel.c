@@ -18,6 +18,8 @@
 #include "mouse.h"
 #include "graphics.h"
 #include "apic.h"
+#include "mp.h"
+#include "acpi.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
@@ -106,6 +108,12 @@ void kmain(BootInfo *boot_info)
     InitializeFPU();
 
     PIC_Init();
+
+    /* MP Configuration Table 탐색 (멀티프로세서 정보 수집) */
+    MP_Init();
+
+    /* ACPI MADT 파싱 (인터럽트 컨트롤러 토폴로지 수집) */
+    ACPI_Init(boot_info);
 
     /* Local APIC 활성화 및 APIC Timer로 PIT 대체 */
     APIC_Init();

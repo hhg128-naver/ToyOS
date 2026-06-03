@@ -34,6 +34,7 @@ typedef struct {
     VOID *mmap;                          // UEFI 메모리 맵 버퍼 포인터
     UINTN mmap_size;                     // 메모리 맵 전체 크기
     UINTN descriptor_size;               // 메모리 맵 각 엔트리(Descriptor)의 크기
+    VOID *rsdp;                          // ACPI RSDP 주소
 } BootInfo;
 
 typedef void (*KernelEntry)(BootInfo *);
@@ -162,6 +163,30 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     BInfo->horizontal_resolution = Gop->Mode->Info->HorizontalResolution;
     BInfo->vertical_resolution = Gop->Mode->Info->VerticalResolution;
     BInfo->screen_size = (unsigned long)BInfo->horizontal_resolution * BInfo->vertical_resolution;
+
+    /*
+     * ACPI RSDP 탐색: EFI Configuration Table에서 ACPI 테이블 포인터를 찾습니다.
+     * ACPI 2.0+ XSDP(GUID: 8868e871-...)를 우선 탐색하고,
+     * 없으면 ACPI 1.0 RSDP(GUID: eb9d2d30-...)를 사용합니다.
+     */
+    BInfo->rsdp = NULL;
+    EFI_GUID Acpi20Guid = {0x8868e871, 0xe4f1, 0x11d3, {0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81}};
+    EFI_GUID Acpi10Guid = {0xeb9d2d30, 0x2d88, 0x11d3, {0x9a, 0x16, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d}};
+    for (UINTN i = 0; i < SystemTable->NumberOfTableEntries; i++)
+    {
+        EFI_CONFIGURATION_TABLE *entry = &SystemTable->ConfigurationTable[i];
+        if (CompareGuid(&entry->VendorGuid, &Acpi20Guid) == 0)
+        {
+            BInfo->rsdp = entry->VendorTable;
+            Print(L"Found ACPI 2.0+ RSDP at 0x%lx\n", (UINT64)entry->VendorTable);
+            break;
+        }
+        if (CompareGuid(&entry->VendorGuid, &Acpi10Guid) == 0 && BInfo->rsdp == NULL)
+        {
+            BInfo->rsdp = entry->VendorTable;
+            Print(L"Found ACPI 1.0 RSDP at 0x%lx\n", (UINT64)entry->VendorTable);
+        }
+    }
 
     // --- Critical Section: GetMemoryMap and ExitBootServices ---
     UINTN MemoryMapSize = 0, MapKey, DescriptorSize;
