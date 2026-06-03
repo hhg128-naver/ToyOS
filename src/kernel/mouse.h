@@ -18,11 +18,18 @@ typedef struct
     int x;
     int y;
     uint8_t buttons;
+    int8_t scroll;          /* 마우스 휠 스크롤 델타 (양수=위, 음수=아래) */
 } MouseState;
 
 void Mouse_Init(BootInfo *binfo);
 void Mouse_Handler();
 MouseState GetMouseState();
 void Mouse_SetSensitivity(int sensitivity);
+
+/**
+ * Mouse_GetScroll: 마우스 휠 스크롤 델타를 반환하고 내부 값을 리셋합니다.
+ * @return 스크롤 델타 (양수=위로 스크롤, 음수=아래로 스크롤, 0=변화 없음)
+ */
+int8_t Mouse_GetScroll(void);
 
 #endif

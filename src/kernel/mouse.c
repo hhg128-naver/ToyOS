@@ -6,15 +6,21 @@ extern void outb(uint16_t port, uint8_t data);
 extern uint8_t inb(uint16_t port);
 
 static BootInfo *mouse_boot_info = NULL;
-static MouseState current_mouse_state = {400, 300, 0};
+static MouseState current_mouse_state = {400, 300, 0, 0};
 static uint8_t mouse_cycle = 0;
-static uint8_t mouse_packet[3];
+static uint8_t mouse_packet[4];
 
 /* 마우스 감도 */
 static int mouse_sensitivity = 2;
 
 /* 마우스 커서 레이어 */
 static Layer *mouse_layer = NULL;
+
+/* IntelliMouse 모드 여부 (4바이트 패킷) */
+static int mouse_has_wheel = 0;
+
+/* 스크롤 델타 누적 (인터럽트에서 쓰고 메인에서 읽음) */
+static volatile int8_t scroll_delta = 0;
 
 /* 화살표 모양의 마우스 커서 비트맵 (12x19) */
 static const uint16_t mouse_cursor_bitmap[19] = {
@@ -81,15 +87,64 @@ static uint8_t Mouse_Read()
     return inb(MOUSE_PORT_DATA);
 }
 
+/*
+ * Mouse_SetSampleRate: 마우스의 Sample Rate를 설정합니다.
+ * IntelliMouse 확장 활성화를 위한 매직 시퀀스에 사용됩니다.
+ *
+ * @param rate: Sample Rate (Hz)
+ */
+static void Mouse_SetSampleRate(uint8_t rate)
+{
+    Mouse_Write(0xF3);   /* Set Sample Rate 명령 */
+    Mouse_Read();         /* ACK */
+    Mouse_Write(rate);
+    Mouse_Read();         /* ACK */
+}
+
+/*
+ * Mouse_EnableIntelliMouse: IntelliMouse 확장 프로토콜을 활성화합니다.
+ *
+ * 매직 시퀀스: Sample Rate를 200 → 100 → 80 순서로 설정하면
+ * 마우스가 Mouse ID를 0x03으로 변경하고 4바이트 패킷 모드로 전환됩니다.
+ * 4번째 바이트에 Z축(스크롤 휠) 데이터가 포함됩니다.
+ *
+ * @return 1이면 IntelliMouse 모드 활성화, 0이면 실패
+ */
+static int Mouse_EnableIntelliMouse(void)
+{
+    /* 매직 시퀀스: 200, 100, 80 */
+    Mouse_SetSampleRate(200);
+    Mouse_SetSampleRate(100);
+    Mouse_SetSampleRate(80);
+
+    /* Mouse ID 확인 */
+    Mouse_Write(0xF2);  /* Get Mouse ID */
+    Mouse_Read();        /* ACK */
+    uint8_t mouse_id = Mouse_Read();
+
+    if (mouse_id == 0x03)
+    {
+        printf("Mouse: IntelliMouse wheel mode enabled (ID=0x%02x)\n", mouse_id);
+        return 1;
+    }
+    else
+    {
+        printf("Mouse: Standard mode (ID=0x%02x), no wheel support\n", mouse_id);
+        return 0;
+    }
+}
+
 void Mouse_Init(BootInfo *binfo)
 {
     mouse_boot_info = binfo;
 
     uint8_t status;
 
+    /* 보조 마우스 장치 활성화 */
     Mouse_Wait(1);
     outb(MOUSE_PORT_COMMAND, 0xA8);
 
+    /* 인터럽트 활성화 설정 */
     Mouse_Wait(1);
     outb(MOUSE_PORT_COMMAND, 0x20);
     Mouse_Wait(0);
@@ -99,9 +154,14 @@ void Mouse_Init(BootInfo *binfo)
     Mouse_Wait(1);
     outb(MOUSE_PORT_DATA, status);
 
+    /* 기본 설정 복원 */
     Mouse_Write(0xF6);
     Mouse_Read();
 
+    /* IntelliMouse 확장 활성화 시도 (4바이트 패킷 = 휠 지원) */
+    mouse_has_wheel = Mouse_EnableIntelliMouse();
+
+    /* 데이터 전송 시작 */
     Mouse_Write(0xF4);
     Mouse_Read();
 
@@ -135,9 +195,10 @@ void Mouse_Handler()
     
     if ((status & 1) && (status & 0x20))
     {
+        uint8_t packet_size = mouse_has_wheel ? 4 : 3;
         mouse_packet[mouse_cycle++] = inb(MOUSE_PORT_DATA);
 
-        if (mouse_cycle == 3)
+        if (mouse_cycle == packet_size)
         {
             mouse_cycle = 0;
 
@@ -148,6 +209,21 @@ void Mouse_Handler()
 
             if (mouse_packet[0] & 0x10) x_offset |= 0xFFFFFF00;
             if (mouse_packet[0] & 0x20) y_offset |= 0xFFFFFF00;
+
+            /* 4번째 바이트: Z축(스크롤 휠) — 부호 있는 값 */
+            if (mouse_has_wheel)
+            {
+                int8_t z = (int8_t)mouse_packet[3];
+                if (z != 0)
+                {
+                    /*
+                     * PS/2에서 z > 0 = 아래 스크롤, z < 0 = 위 스크롤
+                     * 부호를 반전하여 양수 = 위, 음수 = 아래로 통일
+                     */
+                    scroll_delta = -z;
+                    current_mouse_state.scroll = -z;
+                }
+            }
 
             // 좌표 업데이트
             current_mouse_state.x += (x_offset / mouse_sensitivity);
@@ -178,4 +254,16 @@ void Mouse_SetSensitivity(int sensitivity)
 {
     if (sensitivity < 1) sensitivity = 1;
     mouse_sensitivity = sensitivity;
+}
+
+/*
+ * Mouse_GetScroll: 스크롤 델타를 반환하고 내부 값을 0으로 리셋합니다.
+ * 메인 루프 또는 인터럽트 핸들러에서 호출하여 스크롤 이벤트를 소비합니다.
+ */
+int8_t Mouse_GetScroll(void)
+{
+    int8_t delta = scroll_delta;
+    scroll_delta = 0;
+    current_mouse_state.scroll = 0;
+    return delta;
 }

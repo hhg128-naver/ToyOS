@@ -31,6 +31,16 @@ void ClearScreen(BootInfo *binfo, uint32_t color);
 /* Printf: 가변 인자 없이 문자열만 출력하는 임시 함수 */
 void kPrintf(const char *str);
 
+/* --- 콘솔 스크롤백 기능 --- */
+
+/**
+ * Console_HandleScroll: 마우스 휠 델타를 받아 콘솔의 스크롤 위치를 조정합니다.
+ * 양수 = 위로 스크롤 (이전 내용 보기), 음수 = 아래로 스크롤 (최신 내용으로 복귀)
+ *
+ * @param delta: 스크롤 방향 및 크기
+ */
+void Console_HandleScroll(int8_t delta);
+
 #ifdef __cplusplus
 }
 #endif

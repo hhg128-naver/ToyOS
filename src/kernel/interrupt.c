@@ -2,6 +2,7 @@
 #include "kernel.h"
 #include "keyboard.h"
 #include "mouse.h"
+#include "console.h"
 #include "task.h"
 #include "apic.h"
 
@@ -142,6 +143,13 @@ uint64_t InterruptHandler(Context *regs)
     else if (irq == 44)
     {
         Mouse_Handler();
+
+        /* 마우스 휠 스크롤 → 콘솔 스크롤백 연결 */
+        int8_t scroll = Mouse_GetScroll();
+        if (scroll != 0)
+        {
+            Console_HandleScroll(scroll);
+        }
     }
 
     SendEOI(irq);
