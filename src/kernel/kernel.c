@@ -20,73 +20,11 @@
 #include "apic.h"
 #include "mp.h"
 #include "acpi.h"
+#include "fpu.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
 extern void call_constructors();
-
-void InitializeFPU()
-{
-    uint64_t initial_cr0 = ReadCR0();
-    uint64_t initial_cr4 = ReadCR4();
-    printf("Initial Processor State - CR0: %p, CR4: %p\n", (void *)initial_cr0, (void *)initial_cr4);
-
-    uint64_t cr0 = initial_cr0;
-    cr0 &= ~(1 << 2);
-    cr0 |= (1 << 1);
-    WriteCR0(cr0);
-
-    uint64_t cr4 = initial_cr4;
-    cr4 |= (1 << 9);
-    cr4 |= (1 << 10);
-    WriteCR4(cr4);
-
-    InitFPU();
-    kPrintf("FPU and SSE Initialized.\n");
-}
-
-/* 윈도우 목록 관리 */
-static Window *shell_win = NULL;
-
-/* GUI_Task: 화면 갱신 및 마우스 이벤트 처리 */
-void GUI_Task()
-{
-    while (1)
-    {
-        MouseState ms = GetMouseState();
-        
-        // 마우스 상호작용 (드래그 로직)
-        if (ms.buttons & MOUSE_LEFT_BUTTON)
-        {
-            if (shell_win && !shell_win->is_dragging)
-            {
-                // 타이틀 바 영역(높이 25) 내에서 클릭했는지 확인
-                if (ms.x >= shell_win->layer->x && ms.x < shell_win->layer->x + shell_win->layer->width &&
-                    ms.y >= shell_win->layer->y && ms.y < shell_win->layer->y + 25)
-                {
-                    shell_win->is_dragging = 1;
-                    shell_win->drag_x = ms.x - shell_win->layer->x;
-                    shell_win->drag_y = ms.y - shell_win->layer->y;
-                    
-                    Layer_SetZOrder(shell_win->layer, 900);
-                }
-            }
-            
-            if (shell_win && shell_win->is_dragging)
-            {
-                Layer_Move(shell_win->layer, ms.x - shell_win->drag_x, ms.y - shell_win->drag_y);
-            }
-        }
-        else
-        {
-            if (shell_win) shell_win->is_dragging = 0;
-        }
-
-        LayerManager_Render(boot_info_global);
-        SwapBuffers(boot_info_global);
-        Yield(); 
-    }
-}
 
 void kmain(BootInfo *boot_info)
 {

@@ -41,6 +41,7 @@ typedef struct
 void kmain(BootInfo *boot_info);
 
 #include "console.h"
+#include "fpu.h"
 
 /* --- 인터럽트 제어 --- */
 void EnableInterrupts(void);

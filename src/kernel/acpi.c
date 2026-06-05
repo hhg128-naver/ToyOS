@@ -100,7 +100,7 @@ static ACPISDTHeader* ACPI_FindTable(RSDP *rsdp, uint32_t signature)
         int entry_count = (xsdt->header.length - sizeof(ACPISDTHeader)) / sizeof(uint64_t);
         uint64_t *entries = (uint64_t *)((uint8_t *)xsdt + sizeof(ACPISDTHeader));
 
-        printf("ACPI: XSDT at 0x%p, %d entries\n", (void *)xsdt, entry_count);
+        printf("ACPI: XSDT at %p, %d entries\n", (void *)xsdt, entry_count);
 
         for (int i = 0; i < entry_count; i++)
         {
@@ -139,7 +139,7 @@ use_rsdt:
         int entry_count = (rsdt->header.length - sizeof(ACPISDTHeader)) / sizeof(uint32_t);
         uint32_t *entries = (uint32_t *)((uint8_t *)rsdt + sizeof(ACPISDTHeader));
 
-        printf("ACPI: RSDT at 0x%p, %d entries\n", (void *)rsdt, entry_count);
+        printf("ACPI: RSDT at %p, %d entries\n", (void *)rsdt, entry_count);
 
         for (int i = 0; i < entry_count; i++)
         {
@@ -345,7 +345,7 @@ int ACPI_Init(BootInfo *boot_info)
     }
 
     RSDP *rsdp = (RSDP *)boot_info->rsdp;
-    printf("ACPI: RSDP at 0x%p\n", (void *)rsdp);
+    printf("ACPI: RSDP at %p\n", (void *)rsdp);
 
     /* RSDP 유효성 검증 */
     if (!ACPI_ValidateRSDP(rsdp))
@@ -370,7 +370,7 @@ int ACPI_Init(BootInfo *boot_info)
         return -1;
     }
 
-    printf("ACPI: MADT found at 0x%p (Length: %u bytes)\n",
+    printf("ACPI: MADT found at %p (Length: %u bytes)\n",
            (void *)madt_header, madt_header->length);
 
     /* 3. MADT 파싱 */
@@ -387,7 +387,7 @@ int ACPI_Init(BootInfo *boot_info)
     printf("  Total CPUs:        %d\n", acpi_info.cpu_count);
     printf("  Total I/O APICs:   %d\n", acpi_info.ioapic_count);
     printf("  IRQ Overrides:     %d\n", acpi_info.iso_count);
-    printf("  LAPIC Address:     0x%p\n", (void *)acpi_info.lapic_address);
+    printf("  LAPIC Address:     %p\n", (void *)acpi_info.lapic_address);
     printf("  Dual 8259 PICs:    %s\n", acpi_info.pcat_compat ? "Yes" : "No");
     printf("=========================\n\n");
 

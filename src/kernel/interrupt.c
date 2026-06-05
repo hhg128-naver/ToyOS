@@ -57,13 +57,13 @@ uint64_t ExceptionHandler(Context *regs)
     }
 
     printf("Exception No: %d, Error Code: 0x%x\n", (int)regs->interrupt_number, (int)regs->error_code);
-    printf("Faulting RIP: 0x%p, RSP: 0x%p\n", (void*)regs->rip, (void*)regs->rsp);
+    printf("Faulting RIP: %p, RSP: %p\n", (void*)regs->rip, (void*)regs->rsp);
 
     if (regs->interrupt_number == 14)
     {
         uint64_t cr2;
         __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
-        printf("Faulting Address (CR2): 0x%p\n", (void*)cr2);
+        printf("Faulting Address (CR2): %p\n", (void*)cr2);
         
         printf("Cause: %s, %s, %s, %s, %s\n",
             (regs->error_code & 1) ? "Page Present" : "Page Not Present",

@@ -135,7 +135,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
                                        AllocateAddress, EfiLoaderData, Pages, &Addr);
             
             if (EFI_ERROR(Status)) {
-                Print(L"Failed to allocate memory at 0x%lx. Error: %r\n", Phdrs[i].p_paddr, Status);
+                Print(L"Failed to allocate memory at %lx. Error: %r\n", Phdrs[i].p_paddr, Status);
                 return Status;
             }
 
@@ -178,13 +178,13 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
         if (CompareGuid(&entry->VendorGuid, &Acpi20Guid) == 0)
         {
             BInfo->rsdp = entry->VendorTable;
-            Print(L"Found ACPI 2.0+ RSDP at 0x%lx\n", (UINT64)entry->VendorTable);
+            Print(L"Found ACPI 2.0+ RSDP at %lx\n", (UINT64)entry->VendorTable);
             break;
         }
         if (CompareGuid(&entry->VendorGuid, &Acpi10Guid) == 0 && BInfo->rsdp == NULL)
         {
             BInfo->rsdp = entry->VendorTable;
-            Print(L"Found ACPI 1.0 RSDP at 0x%lx\n", (UINT64)entry->VendorTable);
+            Print(L"Found ACPI 1.0 RSDP at %lx\n", (UINT64)entry->VendorTable);
         }
     }
 
@@ -193,7 +193,7 @@ efi_main (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     UINT32 DescriptorVersion;
     EFI_MEMORY_DESCRIPTOR *MemoryMap = NULL;
 
-    Print(L"Jumping to Kernel at 0x%lx...\n", Header.e_entry);
+    Print(L"Jumping to Kernel at %lx...\n", Header.e_entry);
 
     /*
      * 1. GetMemoryMap (크기 확인): 현재 메모리 맵의 크기를 확인합니다.

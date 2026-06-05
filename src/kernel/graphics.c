@@ -1,6 +1,9 @@
 #include "graphics.h"
 #include "heap.h"
 #include "font.h"
+#include "mouse.h"
+#include "task.h"
+#include "console.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -8,6 +11,7 @@ static uint32_t *back_buffer = NULL;
 static uint64_t back_buffer_size = 0;
 static LayerManager layer_manager;
 Layer *g_ShellLayer = NULL;
+Window *shell_win = NULL;
 
 void Graphics_Init(BootInfo *binfo)
 {
@@ -330,5 +334,44 @@ void DrawFillRect(BootInfo *binfo, int x, int y, int width, int height, uint32_t
             if (nx < 0 || nx >= (int)binfo->horizontal_resolution) continue;
             back_buffer[ny * binfo->horizontal_resolution + nx] = color;
         }
+    }
+}
+
+void GUI_Task(void)
+{
+    while (1)
+    {
+        MouseState ms = GetMouseState();
+        
+        // 마우스 상호작용 (드래그 로직)
+        if (ms.buttons & MOUSE_LEFT_BUTTON)
+        {
+            if (shell_win && !shell_win->is_dragging)
+            {
+                // 타이틀 바 영역(높이 25) 내에서 클릭했는지 확인
+                if (ms.x >= shell_win->layer->x && ms.x < shell_win->layer->x + shell_win->layer->width &&
+                    ms.y >= shell_win->layer->y && ms.y < shell_win->layer->y + 25)
+                {
+                    shell_win->is_dragging = 1;
+                    shell_win->drag_x = ms.x - shell_win->layer->x;
+                    shell_win->drag_y = ms.y - shell_win->layer->y;
+                    
+                    Layer_SetZOrder(shell_win->layer, 900);
+                }
+            }
+            
+            if (shell_win && shell_win->is_dragging)
+            {
+                Layer_Move(shell_win->layer, ms.x - shell_win->drag_x, ms.y - shell_win->drag_y);
+            }
+        }
+        else
+        {
+            if (shell_win) shell_win->is_dragging = 0;
+        }
+
+        LayerManager_Render(boot_info_global);
+        SwapBuffers(boot_info_global);
+        Yield(); 
     }
 }

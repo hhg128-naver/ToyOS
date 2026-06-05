@@ -51,7 +51,7 @@ void APIC_Init(void)
     uint64_t apic_base_msr = ReadMSR(IA32_APIC_BASE_MSR);
     uint64_t apic_phys_base = apic_base_msr & 0xFFFFF000ULL;
 
-    printf("APIC Base MSR: 0x%p (Phys Base: 0x%p)\n",
+    printf("APIC Base MSR: %p (Phys Base: %p)\n",
            (void *)apic_base_msr, (void *)apic_phys_base);
 
     /* 2. Global Enable 비트가 꺼져 있으면 활성화 */

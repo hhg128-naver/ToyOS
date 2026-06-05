@@ -66,6 +66,9 @@ Layer* LayerManager_GetLayerAt(int x, int y);
 
 /* 전역 쉘 레이어 설정 (syscall용) */
 extern Layer *g_ShellLayer;
+extern Window *shell_win;
+
+void GUI_Task(void);
 
 /* Draw API (백 버퍼 직접 그리기) */
 void DrawPixel(BootInfo *binfo, int x, int y, uint32_t color);

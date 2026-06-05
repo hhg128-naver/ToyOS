@@ -57,7 +57,7 @@ static MPFloatingPointer* MP_SearchRange(uint64_t start, uint32_t len)
             if (MP_Checksum(fps, 16) != 0)
                 continue;
 
-            printf("MP: Found MP Floating Pointer at 0x%p (Rev 1.%d)\n",
+            printf("MP: Found MP Floating Pointer at %p (Rev 1.%d)\n",
                    (void *)addr, fps->spec_rev);
             return fps;
         }
@@ -89,7 +89,7 @@ static MPFloatingPointer* MP_FindFloatingPointer(void)
     if (ebda_seg != 0)
     {
         uint64_t ebda_addr = (uint64_t)ebda_seg << 4;
-        printf("MP: Searching EBDA at 0x%p...\n", (void *)ebda_addr);
+        printf("MP: Searching EBDA at %p...\n", (void *)ebda_addr);
         fps = MP_SearchRange(ebda_addr, 1024);
         if (fps)
             return fps;
@@ -306,7 +306,7 @@ int MP_Init(void)
         }
 
         MPConfigTable *table = (MPConfigTable *)(uint64_t)fps->mp_config_ptr;
-        printf("MP: Config Table at 0x%p\n", (void *)table);
+        printf("MP: Config Table at %p\n", (void *)table);
 
         if (MP_ParseConfigTable(table) != 0)
         {
