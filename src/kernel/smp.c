@@ -86,7 +86,19 @@ void ap_entry(void)
     /* 3. BSP의 IDT를 이 AP에 로드 (예외 핸들링 활성화) */
     LoadIDT_AP();
 
-    /* 4. 이 AP의 LAPIC ID를 읽어 cpu_info 슬롯에 online 플래그 설정 */
+    /* 4. FPU/SSE 활성화 (컴파일러가 printf 등에서 SSE 명령어를 사용하므로 필수) */
+    uint64_t cr0 = ReadCR0();
+    cr0 &= ~(1 << 2);  /* CR0.EM 해제 (x87 에뮬레이션 비활성화) */
+    cr0 |= (1 << 1);   /* CR0.MP 설정 */
+    WriteCR0(cr0);
+
+    uint64_t cr4 = ReadCR4();
+    cr4 |= (1 << 9);   /* CR4.OSFXSR (SSE 명령어 활성화) */
+    cr4 |= (1 << 10);  /* CR4.OSXMMEXCPT (SSE 예외 처리 활성화) */
+    WriteCR4(cr4);
+
+    InitFPU();          /* fninit: FPU 상태 초기화 */
+
     uint32_t my_lapic_id = APIC_Read(APIC_ID_REG) >> 24;
 
     for (int i = 0; i < SMP_MAX_CPUS; i++)
@@ -101,8 +113,13 @@ void ap_entry(void)
     /* 5. 온라인 CPU 카운트 원자적 증가 */
     __sync_fetch_and_add(&cpu_count_online, 1);
 
-    /* 6. 인터럽트 비활성화 상태로 idle 루프 진입
-     *    (이번 단계에서는 AP에서 태스크를 실행하지 않음) */
+    /* 6. 이 AP의 APIC Timer 시작 (BSP의 캐리브레이션 결과 재사용) */
+    APIC_Timer_Init(100); /* 100Hz, 벡터 48 */
+
+    /* 7. 인터럽트 활성화 → APIC Timer가 타이머 인터럽트를 일으켜 Schedule()이 실행됨 */
+    __asm__ volatile("sti");
+
+    /* 8. idle 루프 (태스크가 없으면 hlt로 대기, 인터럽트로 깨어낙) */
     while (1)
     {
         __asm__ volatile("hlt");
@@ -127,6 +144,14 @@ void SMP_Init(void)
 {
     const ACPIInfo *acpi = ACPI_GetInfo();
 
+    /* BSP를 cpu_info[0]에 등록 — acpi 검사 전에 항상 수행 */
+    uint32_t bsp_lapic_id = APIC_Read(APIC_ID_REG) >> 24;
+    cpu_info[0].lapic_id         = (uint8_t)bsp_lapic_id;
+    cpu_info[0].cpu_index        = 0;
+    cpu_info[0].online           = 1;
+    cpu_info[0].kernel_stack_top = 0;
+    cpu_count_online             = 1;
+
     if (!acpi)
     {
         printf("SMP: ACPI info not found. Skipping AP boot.\n");
@@ -135,15 +160,11 @@ void SMP_Init(void)
 
     printf("\n=== SMP Initialization Start ===\n");
     printf("SMP: %d CPU(s) detected from ACPI MADT.\n", acpi->cpu_count);
-
-    /* BSP의 LAPIC ID 확인 */
-    uint32_t bsp_lapic_id = APIC_Read(APIC_ID_REG) >> 24;
     printf("SMP: BSP LAPIC ID = %u\n", bsp_lapic_id);
 
     if (acpi->cpu_count <= 1)
     {
         printf("SMP: Single-CPU system. No APs to start.\n");
-        cpu_count_online = 1;
         return;
     }
 
@@ -157,12 +178,6 @@ void SMP_Init(void)
     uint64_t pml4_phys;
     __asm__ volatile("mov %%cr3, %0" : "=r"(pml4_phys));
 
-    /* BSP를 cpu_info[0]에 등록 */
-    cpu_info[0].lapic_id         = (uint8_t)bsp_lapic_id;
-    cpu_info[0].cpu_index        = 0;
-    cpu_info[0].online           = 1;
-    cpu_info[0].kernel_stack_top = 0;
-    cpu_count_online             = 1;
 
     /* ── 각 AP를 순차적으로 부팅 ── */
     int ap_num = 0;

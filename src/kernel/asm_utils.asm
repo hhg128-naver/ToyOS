@@ -12,7 +12,7 @@ global isr0, isr1, isr2, isr3, isr4, isr5, isr6, isr7, isr8, isr9
 global isr10, isr11, isr12, isr13, isr14, isr15, isr16, isr17, isr18, isr19
 global isr20, isr21, isr22, isr23, isr24, isr25, isr26, isr27, isr28, isr29
 global isr30, isr31
-global irq32, irq33, irq44, irq48  ; IRQ 0 (Timer), IRQ 1 (Keyboard), IRQ 12 (Mouse), APIC Timer
+global irq32, irq33, irq44, irq48, irq255  ; IRQ 0 (Timer), IRQ 1 (Keyboard), IRQ 12 (Mouse), APIC Timer, Spurious
 global outb, inb, outw, inw, insw
 extern ExceptionHandler
 extern InterruptHandler
@@ -215,6 +215,11 @@ IRQ 32                ; IRQ 0 (Timer)
 IRQ 33                ; IRQ 1 (Keyboard)
 IRQ 44                ; IRQ 12 (Mouse)
 IRQ 48                ; APIC Timer
+
+; irq255: LAPIC Spurious Interrupt Vector (벡터 0xFF)
+; Spurious 인터럽트는 EOI를 보내지 않고 바로 반환해야 합니다.
+irq255:
+    iretq
 
 isr_common:
     push rax

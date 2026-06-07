@@ -43,11 +43,6 @@ typedef struct
     uint64_t      kernel_stack_top; /* AP 커널 스택 최상단 */
 } CPUInfo;
 
-/* ===== 전역 변수 ===== */
-
-extern CPUInfo      cpu_info[SMP_MAX_CPUS];
-extern volatile int cpu_count_online;   /* 현재 온라인 CPU 수 (BSP=1 포함) */
-
 /* ===== 스핀락 ===== */
 
 /*
@@ -66,6 +61,12 @@ void spinlock_acquire(spinlock_t *lock);
  * spinlock_release: 스핀락을 해제합니다.
  */
 void spinlock_release(spinlock_t *lock);
+
+/* ===== 전역 변수 ===== */
+
+extern CPUInfo      cpu_info[SMP_MAX_CPUS];
+extern volatile int cpu_count_online;   /* 현재 온라인 CPU 수 (BSP=1 포함) */
+extern spinlock_t   g_kernel_lock;      /* 전역 커널 스핀락 */
 
 /* ===== 함수 선언 ===== */
 

@@ -4,6 +4,8 @@
 #include "gdt.h"
 #include "vmm.h"
 #include "pmm.h"
+#include "smp.h"
+#include "apic.h"
 #include <stdio.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -12,30 +14,46 @@ extern BootInfo *boot_info_global;
 
 static Task* tasks[MAX_TASKS];
 static int task_count = 0;
-static int current_task_index = 0;
+
+/*
+ * per_cpu_task_idx: LAPIC ID를 인덱스로 사용하는 per-CPU 태스크 인덱스 배열.
+ * 값 -1은 해당 CPU가 아직 태스크를 실행하지 않는 상태를 의미합니다.
+ */
+static int per_cpu_task_idx[SMP_MAX_CPUS];
 
 uint64_t current_kernel_stack_top = 0;
 
+/* 현재 CPU의 LAPIC ID 반환 (클램핑 포함) */
+static inline uint32_t get_cpu_id(void)
+{
+    uint32_t id = APIC_Read(APIC_ID_REG) >> 24;
+    return (id < SMP_MAX_CPUS) ? id : 0;
+}
+
 void InitializeTaskSystem() {
+    /* per-CPU 인덱스 배열 초기화 (모두 -1: 태스크 없음) */
+    for (int i = 0; i < SMP_MAX_CPUS; i++)
+        per_cpu_task_idx[i] = -1;
+
     // 메인 커널 흐름을 0번 태스크로 등록
     Task* mainTask = (Task*)kmalloc(sizeof(Task));
     if (!mainTask) return;
     
     mainTask->id = task_count++;
     mainTask->state = TASK_RUNNING;
-    mainTask->stack_base = NULL; // 이미 설정된 커널 스택 사용
-    mainTask->kernel_stack_top = 0; // 메인 커널 스택은 별도 관리됨 (보통 부트 시 설정)
-    mainTask->rsp = 0;           // Schedule 최초 호출 시 저장됨
-    mainTask->pml4 = GetCR3();    // 현재 로드된 커널 페이지 테이블 저장
+    mainTask->stack_base = NULL;
+    mainTask->kernel_stack_top = 0;
+    mainTask->rsp = 0;
+    mainTask->pml4 = GetCR3();
     
-    for (int i = 0; i < MAX_TASKS; i++) {
+    for (int i = 0; i < MAX_TASKS; i++)
         tasks[i] = NULL;
-    }
-    
     tasks[0] = mainTask;
-    current_task_index = 0;
+
+    /* BSP의 LAPIC ID 를 확인하여 BSP의 태스크 인덱스를 0번으로 설정 */
+    uint32_t bsp_lapic_id = get_cpu_id();
+    per_cpu_task_idx[bsp_lapic_id] = 0;
     
-    // 초기 커널 스택 상단 설정 (메인 태스크는 일단 현재 RSP 근처를 기준으로 삼음)
     uint64_t dummy_rsp;
     __asm__ volatile("mov %%rsp, %0" : "=r"(dummy_rsp));
     current_kernel_stack_top = dummy_rsp;
@@ -45,47 +63,44 @@ void InitializeTaskSystem() {
 
 Task* CreateTask(void (*entryPoint)()) {
     uint64_t flags = SaveAndDisableInterrupts();
+    spinlock_acquire(&g_kernel_lock);
 
     if (task_count >= MAX_TASKS) {
         kPrintf("Error: Max tasks reached.\n");
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
 
     Task* newTask = (Task*)kmalloc(sizeof(Task));
     if (!newTask) {
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
     
-    // 태스크 스택 할당
     void* stack = kmalloc(TASK_STACK_SIZE);
     if (!stack) {
         kfree(newTask);
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
 
     newTask->id = task_count;
     newTask->state = TASK_READY;
-    newTask->pml4 = tasks[0]->pml4; // 커널 태스크는 기본적으로 커널 페이지 테이블 공유
+    newTask->pml4 = tasks[0]->pml4;
     newTask->stack_base = stack;
     
-    // 스택 최상단 (64비트 정렬)
     uint64_t stack_top = (uint64_t)stack + TASK_STACK_SIZE;
     newTask->kernel_stack_top = stack_top;
     
-    // Context 구조체 위치 잡기
     Context* ctx = (Context*)(stack_top - sizeof(Context));
-    
-    // 초기 레지스터 상태 설정
     ctx->rip = (uint64_t)entryPoint;
-    ctx->cs = 0x08;         // Kernel Code Segment
-    ctx->rflags = 0x202;    // IF=1 (Interrupts Enabled)
-    ctx->rsp = stack_top;   // IRETQ가 복원할 RSP
-    ctx->ss = 0x10;         // Kernel Data Segment
-    
-    // 범용 레지스터 초기화
+    ctx->cs = 0x08;
+    ctx->rflags = 0x202;
+    ctx->rsp = stack_top;
+    ctx->ss = 0x10;
     ctx->rax = ctx->rbx = ctx->rcx = ctx->rdx = 0;
     ctx->rsi = ctx->rdi = ctx->rbp = 0;
     ctx->r8 = ctx->r9 = ctx->r10 = ctx->r11 = 0;
@@ -98,58 +113,60 @@ Task* CreateTask(void (*entryPoint)()) {
     newTask->heap_end = 0x60000000;
     tasks[task_count++] = newTask;
     
+    spinlock_release(&g_kernel_lock);
     RestoreInterrupts(flags);
     kPrintf("Created New Task.\n");
-    
     return newTask;
 }
 
 Task* CreateUserTask(void (*entryPoint)(), int arg) {
     uint64_t flags = SaveAndDisableInterrupts();
+    spinlock_acquire(&g_kernel_lock);
 
     if (task_count >= MAX_TASKS) {
         kPrintf("Error: Max tasks reached.\n");
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
 
     Task* newTask = (Task*)kmalloc(sizeof(Task));
     if (!newTask) {
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
     
-    /* 1. 독립된 프로세스 주소 공간(PML4) 생성 */
     void* pml4 = VMM_CreateAddressSpace();
     if (!pml4) {
         kfree(newTask);
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
 
-    /* 2. 커널 스택 할당 (인터럽트/시스템 콜 시 복귀용) */
     void* kstack = kmalloc(TASK_STACK_SIZE);
     if (!kstack) {
         VMM_FreeAddressSpace(pml4);
         kfree(newTask);
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
 
-    /* 3. 유저 스택 할당 및 매핑 (태스크 전용 PML4에) */
     void* ustack_phys = PMM_AllocPage();
     if (!ustack_phys) {
         kfree(kstack);
         VMM_FreeAddressSpace(pml4);
         kfree(newTask);
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
-    void* ustack_virt = (void*)0x00007FFFFFFF0000; // 안전한 캐노니컬 가상 주소
+    void* ustack_virt = (void*)0x00007FFFFFFF0000;
     VMM_MapPageEx(pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
 
-    /* 4. 유저 코드 영역 권한 업데이트 (PAGE_USER 추가) */
     uint64_t code_page = (uint64_t)entryPoint & ~0xFFFULL;
     VMM_MapPageEx(pml4, (void*)code_page, (void*)code_page, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     VMM_MapPageEx(pml4, (void*)(code_page + PAGE_SIZE), (void*)(code_page + PAGE_SIZE), PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
@@ -161,19 +178,15 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     newTask->stack_base = kstack;
     newTask->kernel_stack_top = kstack_top;
     
-    /* 5. 초기 컨텍스트 설정 (커널 스택에 저장) */
     Context* ctx = (Context*)(kstack_top - sizeof(Context));
-    
     ctx->rip = (uint64_t)entryPoint;
-    ctx->cs = 0x23;         // User Code Segment (Index 4, RPL 3)
-    ctx->rflags = 0x202;    // IF=1
-    ctx->rsp = ustack_top;  // 유저 스택 포인터
-    ctx->ss = 0x1B;         // User Data Segment (Index 3, RPL 3)
-    
-    // 범용 레지스터 초기화
+    ctx->cs = 0x23;
+    ctx->rflags = 0x202;
+    ctx->rsp = ustack_top;
+    ctx->ss = 0x1B;
     ctx->rax = ctx->rbx = ctx->rcx = ctx->rdx = 0;
     ctx->rsi = 0;
-    ctx->rdi = (uint64_t)arg; // 첫 번째 인자 전달 (x86_64 calling convention)
+    ctx->rdi = (uint64_t)arg;
     ctx->rbp = 0;
     ctx->r8 = ctx->r9 = ctx->r10 = ctx->r11 = 0;
     ctx->r12 = ctx->r13 = ctx->r14 = ctx->r15 = 0;
@@ -185,57 +198,48 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     newTask->heap_end = 0x60000000;
     tasks[task_count++] = newTask;
     
+    spinlock_release(&g_kernel_lock);
     RestoreInterrupts(flags);
     printf("Created Isolated User Task with arg: %d, PML4: %p\n", arg, newTask->pml4);
-    
     return newTask;
 }
 
 Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     uint64_t flags = SaveAndDisableInterrupts();
+    spinlock_acquire(&g_kernel_lock);
 
-    /* 1. 종료된 태스크 슬롯 재사용 탐색 */
     int slot = -1;
-    for (int i = 0; i < MAX_TASKS; i++) 
+    for (int i = 0; i < MAX_TASKS; i++)
     {
-        if (tasks[i] == NULL) 
+        if (tasks[i] == NULL)
         {
             slot = i;
             break;
-        } 
-        // else if (tasks[i]->state == TASK_DEAD) 
-        // {
-        //     /* 기존 자원 해제 */
-        //     VMM_FreeAddressSpace(tasks[i]->pml4);
-        //     if (tasks[i]->stack_base) kfree(tasks[i]->stack_base);
-        //     tasks[i]->stack_base = NULL;
-        //     tasks[i]->pml4 = NULL;
-        //     slot = i;
-        //     break;
-        // }
+        }
     }
 
     if (slot == -1) {
         kPrintf("Error: Max tasks reached.\n");
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
 
-    /* 커널 스택 할당 (인터럽트/시스템 콜 시 복귀용) */
     void* kstack = kmalloc(TASK_STACK_SIZE);
     if (!kstack) {
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
     
-    /* 유저 스택 할당 및 매핑 (태스크 전용 PML4에) */
     void* ustack_phys = PMM_AllocPage();
     if (!ustack_phys) {
         kfree(kstack);
+        spinlock_release(&g_kernel_lock);
         RestoreInterrupts(flags);
         return NULL;
     }
-    void* ustack_virt = (void*)0x00007FFFFFFF0000; // 안전한 캐노니컬 가상 주소
+    void* ustack_virt = (void*)0x00007FFFFFFF0000;
     VMM_MapPageEx(pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
 
@@ -243,8 +247,9 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     if (newTask == NULL) {
         newTask = (Task*)kmalloc(sizeof(Task));
         if (!newTask) {
-            PMM_FreePage(ustack_phys); 
+            PMM_FreePage(ustack_phys);
             kfree(kstack);
+            spinlock_release(&g_kernel_lock);
             RestoreInterrupts(flags);
             return NULL;
         }
@@ -252,25 +257,21 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
         if (slot >= task_count) task_count = slot + 1;
     }
     
-    newTask->id = slot; // 슬롯 인덱스를 ID로 사용
+    newTask->id = slot;
     newTask->pml4 = pml4;
     newTask->stack_base = kstack;
     uint64_t kstack_top = (uint64_t)kstack + TASK_STACK_SIZE;
     newTask->kernel_stack_top = kstack_top;
     
-    /* 초기 컨텍스트 설정 (커널 스택에 저장) */
     Context* ctx = (Context*)(kstack_top - sizeof(Context));
-    
     ctx->rip = entryPoint;
-    ctx->cs = 0x23;         // User Code Segment (Index 4, RPL 3)
-    ctx->rflags = 0x202;    // IF=1
-    ctx->rsp = ustack_top;  // 유저 스택 포인터
-    ctx->ss = 0x1B;         // User Data Segment (Index 3, RPL 3)
-    
-    // 범용 레지스터 초기화
+    ctx->cs = 0x23;
+    ctx->rflags = 0x202;
+    ctx->rsp = ustack_top;
+    ctx->ss = 0x1B;
     ctx->rax = ctx->rbx = ctx->rcx = ctx->rdx = 0;
     ctx->rsi = 0;
-    ctx->rdi = (uint64_t)arg; // 첫 번째 인자 전달
+    ctx->rdi = (uint64_t)arg;
     ctx->rbp = 0;
     ctx->r8 = ctx->r9 = ctx->r10 = ctx->r11 = 0;
     ctx->r12 = ctx->r13 = ctx->r14 = ctx->r15 = 0;
@@ -278,24 +279,30 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     ctx->error_code = 0;
 
     newTask->rsp = (uint64_t)ctx;
-    newTask->state = TASK_READY; // 모든 준비가 끝난 후 상태 변경
+    newTask->state = TASK_READY;
     
+    spinlock_release(&g_kernel_lock);
     RestoreInterrupts(flags);
     printf("Created ELF User Task at slot %d, Entry: %p\n", slot, (void*)entryPoint);
-    
     return newTask;
 }
 
 Task* GetCurrentTask() {
-    return tasks[current_task_index];
+    uint32_t cpu_id = get_cpu_id();
+    int idx = per_cpu_task_idx[cpu_id];
+    if (idx < 0 || idx >= task_count) return NULL;
+    return tasks[idx];
 }
 
 void ExitCurrentTask() {
     uint64_t flags = SaveAndDisableInterrupts();
-    tasks[current_task_index]->state = TASK_DEAD;
+    uint32_t cpu_id = get_cpu_id();
+    int idx = per_cpu_task_idx[cpu_id];
+    if (idx >= 0 && tasks[idx])
+        tasks[idx]->state = TASK_DEAD;
     RestoreInterrupts(flags);
     Yield();
-    while(1); // 절대 도달하지 않음
+    while(1);
 }
 
 void WaitTask(uint64_t id) {
@@ -327,52 +334,70 @@ void WaitTask(uint64_t id) {
 }
 
 uint64_t Schedule(uint64_t current_rsp) {
-    // 스케줄러 핵심 로직 보호
-    uint64_t flags = SaveAndDisableInterrupts();
+    /*
+     * Schedule()은 인터럽트 컨텍스트(IF=0)에서만 호출됩니다.
+     * 스핀락으로 다른 CPU의 동시 접근을 막습니다.
+     */
+    spinlock_acquire(&g_kernel_lock);
 
-    // 시각적 피드백
-    static int sched_count = 0;
+    uint32_t cpu_id = get_cpu_id();
+    int my_task_idx = per_cpu_task_idx[cpu_id];
+
+    /* 시각적 피드백: CPU별로 다른 x 위치에 스피너 표시 */
+    static int sched_counts[SMP_MAX_CPUS];
     char spin[] = {'|', '/', '-', '\\'};
-    kPutChar(boot_info_global, boot_info_global->horizontal_resolution - 16, 0, spin[(sched_count++ / 10) % 4], 0x00FF0000, 0x00000033);
+    int spinner_x = (int)boot_info_global->horizontal_resolution - 16 - (int)(cpu_id * 16);
+    if (spinner_x > 0)
+        kPutChar(boot_info_global, spinner_x, 0, spin[(sched_counts[cpu_id]++ / 10) % 4], 0x00FF0000, 0x00000033);
 
     if (task_count <= 1) {
-        RestoreInterrupts(flags);
+        spinlock_release(&g_kernel_lock);
         return current_rsp;
     }
 
-    // 현재 실행 중인 태스크의 RSP 저장
-    tasks[current_task_index]->rsp = current_rsp;
+    /* 현재 태스크 RSP 저장 + READY 상태로 전환 */
+    if (my_task_idx >= 0 && tasks[my_task_idx]) {
+        tasks[my_task_idx]->rsp = current_rsp;
+        if (tasks[my_task_idx]->state == TASK_RUNNING)
+            tasks[my_task_idx]->state = TASK_READY;
+    }
 
-    // 다음 READY 상태 태스크 선택 (라운드 로빈)
-    int next_index = current_task_index;
-    do {
-        next_index = (next_index + 1) % task_count;
-    } while (next_index != current_task_index && (tasks[next_index] == NULL || tasks[next_index]->state == TASK_SLEEP || tasks[next_index]->state == TASK_DEAD));
+    /* 다음 READY 태스크 탐색 (라운드 로빈) */
+    int start = (my_task_idx >= 0) ? (my_task_idx + 1) % task_count : 0;
+    int next_idx = -1;
+    for (int i = 0; i < task_count; i++) {
+        int idx = (start + i) % task_count;
+        if (tasks[idx] && tasks[idx]->state == TASK_READY) {
+            next_idx = idx;
+            break;
+        }
+    }
 
-    // 실행 가능한 태스크를 찾지 못한 경우 (자기 자신도 SLEEP/DEAD인 경우 등)
-    if (tasks[next_index] == NULL || tasks[next_index]->state == TASK_SLEEP || tasks[next_index]->state == TASK_DEAD) {
-        RestoreInterrupts(flags);
+    if (next_idx < 0) {
+        /* READY 태스크 없음: 현재 태스크를 다시 RUNNING으로 */
+        if (my_task_idx >= 0 && tasks[my_task_idx] &&
+            tasks[my_task_idx]->state != TASK_DEAD)
+            tasks[my_task_idx]->state = TASK_RUNNING;
+        spinlock_release(&g_kernel_lock);
         return current_rsp;
     }
 
-    current_task_index = next_index;
-    Task* next_task = tasks[current_task_index];
+    /* 다음 태스크를 RUNNING으로 전환 */
+    tasks[next_idx]->state = TASK_RUNNING;
+    per_cpu_task_idx[cpu_id] = next_idx;
+    Task* next_task = tasks[next_idx];
 
-    // 페이지 테이블(CR3) 전환 - 주소 공간 격리의 핵심
-    if (next_task->pml4 != NULL && next_task->pml4 != GetCR3()) {
+    /* 페이지 테이블(CR3) 전환 */
+    if (next_task->pml4 != NULL && next_task->pml4 != GetCR3())
         LoadPageTable(next_task->pml4);
-    }
 
-    // 새로운 태스크의 정보를 전역 변수 및 TSS에 반영
+    /* TSS RSP0 갱신 (BSP 전용 — per-AP TSS는 Phase 3에서 구현) */
     current_kernel_stack_top = next_task->kernel_stack_top;
-    if (current_kernel_stack_top != 0) {
+    if (current_kernel_stack_top != 0 && cpu_id == cpu_info[0].lapic_id)
         SetTSSStack(current_kernel_stack_top);
-    }
 
     uint64_t next_rsp = next_task->rsp;
-    
-    RestoreInterrupts(flags);
-
+    spinlock_release(&g_kernel_lock);
     return next_rsp;
 }
 

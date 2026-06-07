@@ -64,6 +64,7 @@ void InitIDT()
     SetIDTEntry(33, irq33, 0x8E); // IRQ 1: Keyboard
     SetIDTEntry(44, irq44, 0x8E); // IRQ 12: Mouse
     SetIDTEntry(48, irq48, 0x8E); // APIC Timer
+    SetIDTEntry(255, irq255, 0x8E); // LAPIC Spurious (벡터 0xFF, EOI 없이 즉시 반환)
 
     /* IDT Pointer 설정 */
     idt_ptr.limit = (sizeof(struct IDTEntry) * 256) - 1;

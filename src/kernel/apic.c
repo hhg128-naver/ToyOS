@@ -2,6 +2,9 @@
 #include "vmm.h"
 #include <stdio.h>
 
+/* BSP에서 한 번 측정한 APIC 타이머 틱/초 (이후 AP가 재사용) */
+static volatile uint32_t apic_calibrated_ticks_per_sec = 0;
+
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void outb(uint16_t port, uint8_t data);
 extern uint8_t inb(uint16_t port);
@@ -136,20 +139,23 @@ void APIC_Init(void)
  */
 void APIC_Timer_Init(uint32_t frequency_hz)
 {
-    /*
-     * Timer Divide Configuration Register 값:
-     * 0x03 = divide by 16
-     * 다른 값: 0x00(÷1), 0x01(÷4), 0x02(÷8), 0x03(÷16),
-     *          0x08(÷32), 0x09(÷64), 0x0A(÷128), 0x0B(÷1)
-     */
     APIC_Write(APIC_TIMER_DIV_REG, 0x03);
 
-    /*
-     * === PIT 캘리브레이션 ===
-     * PIT Channel 2를 사용하여 정확한 10ms를 측정합니다.
-     * PIT 기본 주파수: 1,193,182 Hz
-     * 10ms에 해당하는 카운트: 1193182 / 100 = 11931
-     */
+    uint32_t ticks_per_sec;
+
+    if (apic_calibrated_ticks_per_sec != 0)
+    {
+        /*
+         * AP 경우: BSP가 이미 PIT로 캐리브레이션한 값을 재사용합니다.
+         * PIT Channel 2는 공유 자원이므로 AP가 동시에 접근하면 오동작합니다.
+         */
+        ticks_per_sec = apic_calibrated_ticks_per_sec;
+        printf("APIC Timer (AP, LAPIC=%u): Reusing calibrated %u ticks/sec.\n",
+               APIC_Read(APIC_ID_REG) >> 24, ticks_per_sec);
+    }
+    else
+    {
+        /* BSP 경우: PIT Channel 2로 10ms 캐리브레이션 수행 */
     #define PIT_CALIBRATION_FREQ   100       /* 100Hz = 10ms 주기 */
     #define PIT_BASE_FREQ          1193182
     #define PIT_CAL_COUNT          (PIT_BASE_FREQ / PIT_CALIBRATION_FREQ)
@@ -174,17 +180,19 @@ void APIC_Timer_Init(uint32_t frequency_hz)
     APIC_Write(APIC_LVT_TIMER_REG, APIC_TIMER_MASKED);
 
     /* 경과한 APIC 틱 수 계산 */
-    uint32_t elapsed = 0xFFFFFFFF - APIC_Read(APIC_TIMER_CUR_COUNT);
+        uint32_t elapsed = 0xFFFFFFFF - APIC_Read(APIC_TIMER_CUR_COUNT);
 
-    /*
-     * elapsed 틱은 10ms(= 1/PIT_CALIBRATION_FREQ 초) 동안 발생한 수이므로
-     * 버스 주파수 = elapsed * PIT_CALIBRATION_FREQ * divider
-     * APIC 타이머 틱/초 = elapsed * PIT_CALIBRATION_FREQ (divider는 이미 적용됨)
-     */
-    uint32_t ticks_per_sec = elapsed * PIT_CALIBRATION_FREQ;
+        /*
+         * elapsed 틱은 10ms(= 1/PIT_CALIBRATION_FREQ 초) 동안 발생한 수이므로
+         * 버스 주파수 = elapsed * PIT_CALIBRATION_FREQ * divider
+         * APIC 타이머 틱/초 = elapsed * PIT_CALIBRATION_FREQ (divider는 이미 적용됨)
+         */
+        ticks_per_sec = elapsed * PIT_CALIBRATION_FREQ;
+        apic_calibrated_ticks_per_sec = ticks_per_sec; /* AP를 위해 저장 */
 
-    printf("APIC Timer Calibrated: %u ticks in 10ms, Ticks/sec = %u\n",
-           elapsed, ticks_per_sec);
+        printf("APIC Timer Calibrated: %u ticks in 10ms, Ticks/sec = %u\n",
+               elapsed, ticks_per_sec);
+    } /* end BSP calibration block */
 
     /* 원하는 주파수에 맞는 Initial Count 계산 */
     uint32_t init_count = ticks_per_sec / frequency_hz;
