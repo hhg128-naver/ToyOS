@@ -61,6 +61,15 @@ struct GDTPtr {
 void InitGDT();
 void SetTSSStack(uint64_t stack_addr);
 
+/**
+ * InitGDT_AP: AP에 BSP의 GDT를 로드합니다.
+ * AP가 ap_entry()에서 호출하여 커널 세그먼트를 활성화합니다.
+ */
+void InitGDT_AP(void);
+
+/* BSP의 GDT 포인터 (AP에서 접근) */
+extern struct GDTPtr gdt_ptr;
+
 /* 어셈블리에서 정의할 함수들 */
 extern void sLoadGDT(struct GDTPtr *gdt_ptr);
 extern void LoadTSS(uint16_t tss_selector);

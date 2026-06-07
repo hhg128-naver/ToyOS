@@ -21,6 +21,7 @@
 #include "mp.h"
 #include "acpi.h"
 #include "fpu.h"
+#include "smp.h"
 
 /* 어셈블리(asm_utils.asm)에서 정의됨 */
 extern void EnableInterrupts();
@@ -57,6 +58,9 @@ void kmain(BootInfo *boot_info)
     APIC_Init();
     APIC_Timer_Init(100); /* 100Hz (10ms 주기) */
     PIC_MaskIRQ(0);       /* PIT(IRQ0) 마스킹 — APIC Timer가 타이머 역할 수행 */
+
+    /* AP들을 깨우고 온라인 상태를 확인 (INIT-SIPI-SIPI 프로토콜) */
+    SMP_Init();
 
     InitializeTaskSystem();
 

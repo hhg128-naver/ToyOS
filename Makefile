@@ -45,14 +45,23 @@ EFI_LDFLAGS = -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic \
 
 # 소스 파일 및 오브젝트 파일
 C_SOURCES    = $(wildcard $(KERNEL_DIR)/*.c)
-ASM_SOURCES  = $(wildcard $(KERNEL_DIR)/*.asm)
 UEFI_SOURCES = $(wildcard $(UEFI_DIR)/*.c)
 
 C_OBJECTS    = $(patsubst $(KERNEL_DIR)/%.c, $(KERNEL_BUILD_DIR)/%.o, $(C_SOURCES))
 CPP_SOURCES  = $(wildcard $(KERNEL_DIR)/*.cpp)
 CPP_OBJECTS  = $(patsubst $(KERNEL_DIR)/%.cpp, $(KERNEL_BUILD_DIR)/%.o, $(CPP_SOURCES))
+# ap_trampoline.asm은 flat binary(-f bin)로, ap_trampoline_wrapper.asm은
+# 이 바이너리를 incbin으로 포함하는 ELF64 오브젝트로 별도 빌드합니다.
+ASM_SOURCES  = $(filter-out \
+                 $(KERNEL_DIR)/ap_trampoline.asm \
+                 $(KERNEL_DIR)/ap_trampoline_wrapper.asm, \
+                 $(wildcard $(KERNEL_DIR)/*.asm))
 ASM_OBJECTS  = $(patsubst $(KERNEL_DIR)/%.asm, $(KERNEL_BUILD_DIR)/%.o, $(ASM_SOURCES))
 UEFI_OBJECTS = $(patsubst $(UEFI_DIR)/%.c, $(UEFI_BUILD_DIR)/%.o, $(UEFI_SOURCES))
+
+# AP 트램펄린 관련 파일
+TRAMPOLINE_BIN = $(KERNEL_BUILD_DIR)/ap_trampoline.bin
+TRAMPOLINE_OBJ = $(KERNEL_BUILD_DIR)/ap_trampoline_wrapper.o
 
 TARGET  = kernel
 UEFI_TARGET = bootx64.efi
@@ -62,8 +71,18 @@ all: $(TARGET) uefi user_apps
 user_apps:
 	$(MAKE) -C user
 
-$(TARGET): $(C_OBJECTS) $(CPP_OBJECTS) $(ASM_OBJECTS)
+$(TARGET): $(C_OBJECTS) $(CPP_OBJECTS) $(ASM_OBJECTS) $(TRAMPOLINE_OBJ)
 	$(LD_LLD) $(LDFLAGS) -o $@ $^ $(LIBC_A) $(LIBGCC_A)
+
+# AP 트램펄린: flat binary 빌드 (물리 주소 0x8000용, ORG 0x8000)
+$(TRAMPOLINE_BIN): $(KERNEL_DIR)/ap_trampoline.asm
+	@mkdir -p $(KERNEL_BUILD_DIR)
+	$(NASM) -f bin $< -o $@
+
+# AP 트램펄린 래퍼: flat binary를 .rodata 섹션에 incbin으로 포함
+$(TRAMPOLINE_OBJ): $(KERNEL_DIR)/ap_trampoline_wrapper.asm $(TRAMPOLINE_BIN)
+	@mkdir -p $(KERNEL_BUILD_DIR)
+	$(NASM) -f elf64 $< -o $@
 
 $(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c
 	@mkdir -p $(KERNEL_BUILD_DIR)

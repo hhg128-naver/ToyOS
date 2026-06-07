@@ -33,6 +33,27 @@
 #define IA32_APIC_BASE_MSR     0x1B
 #define IA32_APIC_BASE_ENABLE  (1 << 11)  /* Global APIC Enable */
 
+/* ===== IPI (Interprocessor Interrupt) — ICR 레지스터 ===== */
+#define APIC_ICR_LOW_REG        0x300  /* Interrupt Command Register (하위 32비트) */
+#define APIC_ICR_HIGH_REG       0x310  /* Interrupt Command Register (상위 32비트) */
+
+/* ICR 딜리버리 모드 (비트 [10:8]) */
+#define APIC_IPI_FIXED          (0 << 8)   /* Fixed: 지정 벡터로 인터럽트 전달 */
+#define APIC_IPI_NMI            (4 << 8)   /* NMI: Non-Maskable Interrupt */
+#define APIC_IPI_INIT           (5 << 8)   /* INIT: AP 리셋 신호 */
+#define APIC_IPI_STARTUP        (6 << 8)   /* SIPI: Start-Up IPI */
+
+/* ICR 레벨 (비트 14) */
+#define APIC_IPI_ASSERT         (1 << 14)  /* Level Assert */
+#define APIC_IPI_DEASSERT       (0 << 14)  /* Level De-assert */
+
+/* ICR 트리거 모드 (비트 15) */
+#define APIC_IPI_EDGE           (0 << 15)  /* Edge Triggered */
+#define APIC_IPI_LEVEL          (1 << 15)  /* Level Triggered */
+
+/* ICR 딜리버리 상태 (비트 12, 읽기 전용) */
+#define APIC_ICR_PENDING        (1 << 12)  /* 전송 대기 중 */
+
 /* ===== 함수 선언 ===== */
 
 /**
@@ -56,6 +77,21 @@ void APIC_Timer_Init(uint32_t frequency_hz);
  * APIC Timer 인터럽트 처리 후 반드시 호출해야 합니다.
  */
 void APIC_SendEOI(void);
+
+/**
+ * APIC_SendIPI: 지정한 대상 LAPIC에 IPI를 전송합니다.
+ * @param dest_lapic_id: 대상 CPU의 Local APIC ID
+ * @param vector:        인터럽트 벡터 (SIPI의 경우 트램펄린 페이지 번호)
+ * @param delivery_mode: APIC_IPI_INIT 또는 APIC_IPI_STARTUP 등
+ */
+void APIC_SendIPI(uint8_t dest_lapic_id, uint8_t vector, uint32_t delivery_mode);
+
+/**
+ * APIC_Init_AP: AP용 Local APIC 초기화.
+ * BSP의 APIC_Init()에서 이미 MMIO 매핑이 완료된 상태를 가정하며,
+ * VMM_MapPage 및 I/O APIC 검사를 생략합니다.
+ */
+void APIC_Init_AP(void);
 
 /* APIC 레지스터 읽기/쓰기 */
 uint32_t APIC_Read(uint32_t offset);

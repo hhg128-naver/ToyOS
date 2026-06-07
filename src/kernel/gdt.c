@@ -4,7 +4,7 @@
  * 0: NULL, 1: KCode, 2: KData, 3: UData, 4: UCode, 5-6: TSS
  */
 static struct GDTEntry gdt[7];
-static struct GDTPtr gdt_ptr;
+struct GDTPtr gdt_ptr;   /* AP에서 접근할 수 있도록 non-static */
 static struct TSS tss;
 
 /* GDT 엔트리 설정 함수 (일반 8바이트) */
@@ -73,4 +73,15 @@ void InitGDT() {
 
     /* TSS 로드 */
     LoadTSS(0x28);
+}
+
+/*
+ * InitGDT_AP: AP(Application Processor)에 BSP와 동일한 GDT를 로드합니다.
+ * sLoadGDT()는 lgdt 및 far return으로 CS를 0x08로 갱신하고
+ * DS/ES/FS/GS/SS를 0x10으로 설정합니다.
+ * AP는 idle 상태에서 Ring 3 진입이 없으므로 TSS 로드를 생략합니다.
+ */
+void InitGDT_AP(void)
+{
+    sLoadGDT(&gdt_ptr);
 }

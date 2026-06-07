@@ -25,6 +25,15 @@ struct IDTPtr
 /* IDT 초기화 함수 */
 void InitIDT();
 
+/**
+ * LoadIDT_AP: AP에 BSP의 IDT를 로드합니다.
+ * ap_entry()에서 호출하여 예외 핸들링을 활성화합니다.
+ */
+void LoadIDT_AP(void);
+
+/* BSP의 IDT 포인터 (AP에서 접근) */
+extern struct IDTPtr idt_ptr;
+
 /* 어셈블리에서 정의할 IDT 로드 함수 */
 extern void LoadIDT(struct IDTPtr *idt_ptr);
 

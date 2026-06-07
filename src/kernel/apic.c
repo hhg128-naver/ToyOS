@@ -84,6 +84,41 @@ void APIC_Init(void)
     uint32_t apic_id = APIC_Read(APIC_ID_REG) >> 24;
     uint32_t apic_ver = APIC_Read(APIC_VERSION_REG) & 0xFF;
     printf("APIC Initialized: ID=%u, Version=0x%x\n", apic_id, apic_ver);
+
+    /* I/O APIC 감지 및 상태 확인 */
+    #define IOAPIC_BASE_ADDR        0xFEC00000ULL
+    #define IOAPIC_REG_SEL          0x00
+    #define IOAPIC_REG_WIN          0x10
+    #define IOAPIC_ID_INDEX         0x00
+    #define IOAPIC_VER_INDEX        0x01
+
+    VMM_MapPage(
+        (void *)IOAPIC_BASE_ADDR,
+        (void *)IOAPIC_BASE_ADDR,
+        PAGE_PRESENT | PAGE_WRITABLE | PAGE_CACHE_DISABLE | PAGE_WRITE_THROUGH
+    );
+
+    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_SEL);
+    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_WIN);
+
+    *ioapic_sel = IOAPIC_VER_INDEX;
+    uint32_t ioapic_ver = *ioapic_win;
+
+    *ioapic_sel = IOAPIC_ID_INDEX;
+    uint32_t ioapic_id = *ioapic_win;
+
+    if (ioapic_ver == 0xFFFFFFFF || ioapic_ver == 0x00000000)
+    {
+        printf("I/O APIC: NOT Active or Not Found (Read: 0x%08X)\n", ioapic_ver);
+    }
+    else
+    {
+        uint8_t io_version = ioapic_ver & 0xFF;
+        uint8_t io_max_redir = (ioapic_ver >> 16) & 0xFF;
+        uint8_t io_id = (ioapic_id >> 24) & 0x0F;
+        printf("I/O APIC: Active (ID=%u, Version=0x%02X, Max Redirection Entries=%u)\n",
+               io_id, io_version, io_max_redir + 1);
+    }
 }
 
 /*
@@ -164,4 +199,53 @@ void APIC_Timer_Init(uint32_t frequency_hz)
 
     printf("APIC Timer Started: %u Hz (Initial Count: %u)\n",
            frequency_hz, init_count);
+}
+
+/*
+ * APIC_SendIPI: ICR(Interrupt Command Register)을 통해 대상 LAPIC에 IPI를 전송합니다.
+ *
+ * ICR 상위 레지스터(0x310)에 대상 LAPIC ID를 먼저 쓰고,
+ * 그 다음 하위 레지스터(0x300)에 명령을 쓰면 IPI가 발사됩니다.
+ *
+ * @param dest_lapic_id: 대상 CPU의 Local APIC ID
+ * @param vector:        인터럽트 벡터 (예: SIPI = 트램펄린 페이지 번호)
+ * @param delivery_mode: APIC_IPI_INIT 또는 APIC_IPI_STARTUP
+ */
+void APIC_SendIPI(uint8_t dest_lapic_id, uint8_t vector, uint32_t delivery_mode)
+{
+    /* 1. ICR 상위 레지스터에 대상 LAPIC ID 설정 */
+    APIC_Write(APIC_ICR_HIGH_REG, (uint32_t)dest_lapic_id << 24);
+
+    /* 2. ICR 하위 레지스터 작성 → IPI 발사 */
+    uint32_t icr_low = (uint32_t)vector | delivery_mode | APIC_IPI_ASSERT | APIC_IPI_EDGE;
+    APIC_Write(APIC_ICR_LOW_REG, icr_low);
+
+    /* 3. 딜리버리 완료 대기 (Delivery Status 비트 클리어 될 때까지) */
+    while (APIC_Read(APIC_ICR_LOW_REG) & APIC_ICR_PENDING)
+    {
+        __asm__ volatile("pause");
+    }
+}
+
+/*
+ * APIC_Init_AP: AP용 Local APIC 초기화.
+ *
+ * BSP의 APIC_Init()에서 MMIO 매핑이 이미 완료되었으므로
+ * VMM_MapPage 및 I/O APIC 검사를 생략하고 SVR/TPR만 설정합니다.
+ */
+void APIC_Init_AP(void)
+{
+    /* Global Enable 비트 확인 및 필요 시 활성화 */
+    uint64_t apic_base_msr = ReadMSR(IA32_APIC_BASE_MSR);
+    if (!(apic_base_msr & IA32_APIC_BASE_ENABLE))
+    {
+        apic_base_msr |= IA32_APIC_BASE_ENABLE;
+        WriteMSR(IA32_APIC_BASE_MSR, apic_base_msr);
+    }
+
+    /* Spurious Interrupt Vector Register: APIC 소프트웨어 활성화 + Spurious 벡터 0xFF */
+    APIC_Write(APIC_SVR_REG, APIC_SVR_ENABLE | 0xFF);
+
+    /* Task Priority Register: 0 (모든 인터럽트 수용) */
+    APIC_Write(APIC_TPR_REG, 0);
 }

@@ -1,7 +1,7 @@
 #include "idt.h"
 
 static struct IDTEntry idt[256];
-static struct IDTPtr idt_ptr;
+struct IDTPtr idt_ptr;   /* AP에서 접근할 수 있도록 non-static */
 
 void SetIDTEntry(uint8_t vector, void* isr, uint8_t flags)
 {
@@ -70,5 +70,14 @@ void InitIDT()
     idt_ptr.base  = (uint64_t)&idt;
 
     /* IDT 로드 (어셈블리 함수 호출) */
+    LoadIDT(&idt_ptr);
+}
+
+/*
+ * LoadIDT_AP: AP에 BSP의 IDT를 로드합니다.
+ * 예외 핸들러 활성화를 위해 ap_entry()에서 호출됩니다.
+ */
+void LoadIDT_AP(void)
+{
     LoadIDT(&idt_ptr);
 }
