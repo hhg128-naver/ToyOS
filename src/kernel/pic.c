@@ -37,9 +37,12 @@ void PIC_Init() {
  */
 void PIC_MaskIRQ(uint8_t irq) {
     uint16_t port;
-    if (irq < 8) {
+    if (irq < 8) 
+    {
         port = PIC1_DATA;
-    } else {
+    } 
+    else 
+    {
         port = PIC2_DATA;
         irq -= 8;
     }

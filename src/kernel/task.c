@@ -391,10 +391,22 @@ uint64_t Schedule(uint64_t current_rsp) {
     if (next_task->pml4 != NULL && next_task->pml4 != GetCR3())
         LoadPageTable(next_task->pml4);
 
-    /* TSS RSP0 갱신 (BSP 전용 — per-AP TSS는 Phase 3에서 구현) */
+    /* TSS RSP0 갱신 */
     current_kernel_stack_top = next_task->kernel_stack_top;
-    if (current_kernel_stack_top != 0 && cpu_id == cpu_info[0].lapic_id)
-        SetTSSStack(current_kernel_stack_top);
+    if (current_kernel_stack_top != 0) 
+    {
+        /* 각 CPU의 인덱스를 구해서 해당하는 TSS의 rsp0 업데이트 */
+        uint8_t target_cpu_idx = 0;
+        for (int i = 0; i < SMP_MAX_CPUS; i++) 
+        {
+            if (cpu_info[i].lapic_id == (uint8_t)cpu_id) 
+            {
+                target_cpu_idx = cpu_info[i].cpu_index;
+                break;
+            }
+        }
+        SetTSSStack(target_cpu_idx, current_kernel_stack_top);
+    }
 
     uint64_t next_rsp = next_task->rsp;
     spinlock_release(&g_kernel_lock);

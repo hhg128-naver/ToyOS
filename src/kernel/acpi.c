@@ -191,44 +191,42 @@ static int ACPI_ParseMADT(MADT *madt)
     acpi_info.lapic_address = (uint64_t)madt->lapic_address;
 
     /* 엔트리 파싱: MADT 헤더 뒤부터 테이블 끝까지 */
-    uint8_t *entry_ptr = (uint8_t *)madt + sizeof(MADT);
-    uint8_t *table_end = (uint8_t *)madt + madt->header.length;
+    uint8_t* madt_entry_ptr = (uint8_t *)madt + sizeof(MADT);
+    uint8_t* madt_table_end = (uint8_t *)madt + madt->header.length;
 
-    while (entry_ptr < table_end)
+    while (madt_entry_ptr < madt_table_end)
     {
-        MADTEntryHeader *entry = (MADTEntryHeader *)entry_ptr;
+        MADTEntryHeader* madt_entry = (MADTEntryHeader*)madt_entry_ptr;
 
         /* 안전 검사: 엔트리 길이가 0이면 무한 루프 방지 */
-        if (entry->length < 2)
+        if (madt_entry->length < 2)
         {
-            printf("ACPI: Invalid MADT entry length (%d) at offset 0x%x\n",
-                   entry->length, (uint32_t)(entry_ptr - (uint8_t *)madt));
+            printf("ACPI: Invalid MADT entry length (%d) at offset 0x%x\n", madt_entry->length, (uint32_t)(madt_entry_ptr - (uint8_t *)madt));
             break;
         }
 
-        switch (entry->type)
+        switch (madt_entry->type)
         {
         case MADT_ENTRY_LOCAL_APIC:
         {
-            MADTLocalAPIC *lapic = (MADTLocalAPIC *)entry_ptr;
+            MADTLocalAPIC* local_apic = (MADTLocalAPIC*)madt_entry_ptr;
 
             /*
              * Enabled 플래그 또는 Online Capable 플래그가 설정된 CPU만 등록합니다.
              * Online Capable은 현재는 비활성이지만 OS가 온라인으로 전환할 수 있는 CPU입니다.
              */
-            int usable = (lapic->flags & MADT_LAPIC_FLAG_ENABLED) ||
-                         (lapic->flags & MADT_LAPIC_FLAG_ONLINE_CAPABLE);
+            int usable = (local_apic->flags & MADT_LAPIC_FLAG_ENABLED) ||
+                         (local_apic->flags & MADT_LAPIC_FLAG_ONLINE_CAPABLE);
 
-            const char *status = (lapic->flags & MADT_LAPIC_FLAG_ENABLED) ? "Enabled" :
-                                 (lapic->flags & MADT_LAPIC_FLAG_ONLINE_CAPABLE) ? "Online Capable" :
+            const char *status = (local_apic->flags & MADT_LAPIC_FLAG_ENABLED) ? "Enabled" :
+                                 (local_apic->flags & MADT_LAPIC_FLAG_ONLINE_CAPABLE) ? "Online Capable" :
                                  "Disabled";
 
-            printf("  [Local APIC] Processor ID=%u, APIC ID=%u, %s\n",
-                   lapic->acpi_processor_id, lapic->apic_id, status);
+            printf("  [Local APIC] Processor ID=%u, APIC ID=%u, %s\n", local_apic->acpi_processor_id, local_apic->apic_id, status);
 
             if (usable && acpi_info.cpu_count < ACPI_MAX_CPUS)
             {
-                acpi_info.cpu_apic_ids[acpi_info.cpu_count] = lapic->apic_id;
+                acpi_info.cpu_apic_ids[acpi_info.cpu_count] = local_apic->apic_id;
                 acpi_info.cpu_count++;
             }
             break;
@@ -236,14 +234,13 @@ static int ACPI_ParseMADT(MADT *madt)
 
         case MADT_ENTRY_IO_APIC:
         {
-            MADTIOApic *ioapic = (MADTIOApic *)entry_ptr;
+            MADTIOApic* io_apic = (MADTIOApic*)madt_entry_ptr;
 
-            printf("  [I/O APIC] ID=%u, Address=0x%08x, GSI Base=%u\n",
-                   ioapic->io_apic_id, ioapic->io_apic_address, ioapic->gsi_base);
+            printf("  [I/O APIC] ID=%u, Address=0x%08x, GSI Base=%u\n", io_apic->io_apic_id, io_apic->io_apic_address, io_apic->gsi_base);
 
             if (acpi_info.ioapic_count < ACPI_MAX_IOAPICS)
             {
-                acpi_info.ioapics[acpi_info.ioapic_count] = *ioapic;
+                acpi_info.ioapics[acpi_info.ioapic_count] = *io_apic;
                 acpi_info.ioapic_count++;
             }
             break;
@@ -251,10 +248,9 @@ static int ACPI_ParseMADT(MADT *madt)
 
         case MADT_ENTRY_INT_SRC_OVERRIDE:
         {
-            MADTIntSrcOverride *iso = (MADTIntSrcOverride *)entry_ptr;
+            MADTIntSrcOverride* iso = (MADTIntSrcOverride*)madt_entry_ptr;
 
-            printf("  [Int Source Override] Bus=%u, IRQ=%u -> GSI=%u, Flags=0x%04x\n",
-                   iso->bus_source, iso->irq_source, iso->gsi, iso->flags);
+            printf("  [Int Source Override] Bus=%u, IRQ=%u -> GSI=%u, Flags=0x%04x\n", iso->bus_source, iso->irq_source, iso->gsi, iso->flags);
 
             if (acpi_info.iso_count < ACPI_MAX_ISO)
             {
@@ -266,45 +262,41 @@ static int ACPI_ParseMADT(MADT *madt)
 
         case MADT_ENTRY_NMI_SOURCE:
         {
-            printf("  [NMI Source] (length=%u)\n", entry->length);
+            printf("  [NMI Source] (length=%u)\n", madt_entry->length);
             break;
         }
 
         case MADT_ENTRY_LOCAL_APIC_NMI:
         {
-            MADTLocalAPICNMI *nmi = (MADTLocalAPICNMI *)entry_ptr;
+            MADTLocalAPICNMI* nmi = (MADTLocalAPICNMI*)madt_entry_ptr;
 
             const char *target = (nmi->acpi_processor_id == 0xFF) ? "All CPUs" : "Specific";
-            printf("  [Local APIC NMI] Processor=%s (ID=%u), LINT#%u, Flags=0x%04x\n",
-                   target, nmi->acpi_processor_id, nmi->lint, nmi->flags);
+            printf("  [Local APIC NMI] Processor=%s (ID=%u), LINT#%u, Flags=0x%04x\n", target, nmi->acpi_processor_id, nmi->lint, nmi->flags);
             break;
         }
 
         case MADT_ENTRY_LOCAL_APIC_OVERRIDE:
         {
-            MADTLAPICAddrOverride *override = (MADTLAPICAddrOverride *)entry_ptr;
+            MADTLAPICAddrOverride* local_apic_override = (MADTLAPICAddrOverride*)madt_entry_ptr;
 
             printf("  [LAPIC Address Override] 0x%08x%08x\n",
-                   (uint32_t)(override->lapic_address >> 32),
-                   (uint32_t)(override->lapic_address & 0xFFFFFFFF));
+                   (uint32_t)(local_apic_override->lapic_address >> 32),
+                   (uint32_t)(local_apic_override->lapic_address & 0xFFFFFFFF));
 
             /* 64비트 주소로 Local APIC 주소 갱신 */
-            acpi_info.lapic_address = override->lapic_address;
+            acpi_info.lapic_address = local_apic_override->lapic_address;
             break;
         }
 
         case MADT_ENTRY_LOCAL_X2APIC:
         {
-            MADTLocalX2APIC *x2apic = (MADTLocalX2APIC *)entry_ptr;
+            MADTLocalX2APIC *x2apic = (MADTLocalX2APIC *)madt_entry_ptr;
 
             const char *status = (x2apic->flags & MADT_LAPIC_FLAG_ENABLED) ? "Enabled" : "Disabled";
-            printf("  [Local x2APIC] UID=%u, x2APIC ID=%u, %s\n",
-                   x2apic->acpi_processor_uid, x2apic->x2apic_id, status);
+            printf("  [Local x2APIC] UID=%u, x2APIC ID=%u, %s\n", x2apic->acpi_processor_uid, x2apic->x2apic_id, status);
 
             /* x2APIC ID는 8비트를 초과할 수 있으므로 별도 처리가 필요할 수 있음 */
-            if ((x2apic->flags & MADT_LAPIC_FLAG_ENABLED) &&
-                acpi_info.cpu_count < ACPI_MAX_CPUS &&
-                x2apic->x2apic_id <= 0xFF)
+            if ((x2apic->flags & MADT_LAPIC_FLAG_ENABLED) && acpi_info.cpu_count < ACPI_MAX_CPUS && x2apic->x2apic_id <= 0xFF)
             {
                 acpi_info.cpu_apic_ids[acpi_info.cpu_count] = (uint8_t)x2apic->x2apic_id;
                 acpi_info.cpu_count++;
@@ -313,12 +305,11 @@ static int ACPI_ParseMADT(MADT *madt)
         }
 
         default:
-            printf("  [Unknown MADT Entry] Type=%u, Length=%u\n",
-                   entry->type, entry->length);
+            printf("  [Unknown MADT Entry] Type=%u, Length=%u\n", madt_entry->type, madt_entry->length);
             break;
         }
 
-        entry_ptr += entry->length;
+        madt_entry_ptr += madt_entry->length;
     }
 
     return 0;

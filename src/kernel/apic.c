@@ -1,6 +1,7 @@
 #include "apic.h"
 #include "vmm.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 /* BSP에서 한 번 측정한 APIC 타이머 틱/초 (이후 AP가 재사용) */
 static volatile uint32_t apic_calibrated_ticks_per_sec = 0;
@@ -38,6 +39,30 @@ void APIC_SendEOI(void)
     APIC_Write(APIC_EOI_REG, 0);
 }
 
+void EnableGlobalLocalAPIC()
+{
+    uint64_t apic_base_msr = ReadMSR(IA32_APIC_BASE_MSR);
+    if (!(apic_base_msr & IA32_APIC_BASE_ENABLE))
+    {
+        apic_base_msr |= IA32_APIC_BASE_ENABLE;
+        WriteMSR(IA32_APIC_BASE_MSR, apic_base_msr);
+        printf("APIC: Global Enable bit set in MSR 0x1B.\n");
+    }
+    else
+    {
+        printf("APIC: Global Enable bit already set in MSR 0x1B.\n");
+	}
+}
+
+/* 
+ * Spurious Interrupt Vector Register 설정
+ * 벡터 = 0xFF (Spurious), Software Enable = 1 
+ */
+void EnableSoftwareLocalAPIC()
+{
+    APIC_Write(APIC_SVR_REG, APIC_SVR_ENABLE | 0xFF);
+}
+
 /*
  * APIC_Init: Local APIC를 활성화하고 기본 레지스터를 설정합니다.
  *
@@ -50,37 +75,30 @@ void APIC_SendEOI(void)
  */
 void APIC_Init(void)
 {
-    /* 1. MSR에서 APIC 베이스 주소 및 상태 읽기 */
+    /* MSR에서 APIC 베이스 주소 및 상태 읽기 */
     uint64_t apic_base_msr = ReadMSR(IA32_APIC_BASE_MSR);
     uint64_t apic_phys_base = apic_base_msr & 0xFFFFF000ULL;
 
-    printf("APIC Base MSR: %p (Phys Base: %p)\n",
-           (void *)apic_base_msr, (void *)apic_phys_base);
+    printf("APIC Base MSR: %p (Phys Base: %p)\n", (void *)apic_base_msr, (void *)apic_phys_base);
 
-    /* 2. Global Enable 비트가 꺼져 있으면 활성화 */
-    if (!(apic_base_msr & IA32_APIC_BASE_ENABLE))
-    {
-        apic_base_msr |= IA32_APIC_BASE_ENABLE;
-        WriteMSR(IA32_APIC_BASE_MSR, apic_base_msr);
-        printf("APIC Global Enable bit set.\n");
-    }
+    /* Global Enable 비트가 꺼져 있으면 활성화 */
+    EnableGlobalLocalAPIC();
 
     /*
-     * 3. APIC MMIO 영역을 페이지 테이블에 매핑 (캐시 비활성화)
+     *  APIC MMIO 영역을 페이지 테이블에 매핑 (캐시 비활성화)
      *    VMM_Init에서 0~4GB를 identity mapping하지만,
      *    APIC 레지스터는 캐시되면 안 되므로 PCD+PWT 플래그를 추가합니다.
      */
     VMM_MapPage(
-        (void *)APIC_BASE_ADDR,
-        (void *)APIC_BASE_ADDR,
+        (void*)APIC_BASE_ADDR, 
+        (void*)APIC_BASE_ADDR, 
         PAGE_PRESENT | PAGE_WRITABLE | PAGE_CACHE_DISABLE | PAGE_WRITE_THROUGH
     );
 
-    /* 4. Spurious Interrupt Vector Register 설정 */
-    /*    벡터 = 0xFF (Spurious), Software Enable = 1 */
-    APIC_Write(APIC_SVR_REG, APIC_SVR_ENABLE | 0xFF);
+    /* Spurious Interrupt Vector Register 설정 */
+    EnableSoftwareLocalAPIC();
 
-    /* 5. Task Priority Register를 0으로 설정 (모든 인터럽트 수용) */
+    /* Task Priority Register를 0으로 설정 (모든 인터럽트 수용) */
     APIC_Write(APIC_TPR_REG, 0);
 
     /* 초기화 결과 출력 */
@@ -96,11 +114,12 @@ void APIC_Init(void)
     #define IOAPIC_VER_INDEX        0x01
 
     VMM_MapPage(
-        (void *)IOAPIC_BASE_ADDR,
-        (void *)IOAPIC_BASE_ADDR,
+        (void*)IOAPIC_BASE_ADDR,
+        (void*)IOAPIC_BASE_ADDR,
         PAGE_PRESENT | PAGE_WRITABLE | PAGE_CACHE_DISABLE | PAGE_WRITE_THROUGH
     );
 
+	// IO APIC 레지스터에 접근하기 위한 포인터 설정
     volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_SEL);
     volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_WIN);
 
@@ -124,6 +143,27 @@ void APIC_Init(void)
     }
 }
 
+void pit_channel2_start()
+{
+	/* BSP 경우: PIT Channel 2로 10ms 캐리브레이션 수행 */
+	/* PIT Channel 2의 Gate를 활성화하고, Speaker 출력은 비활성화합니다. */
+
+    uint8_t port_b_val = inb(SYSTEM_CONTROL_PORT_B);
+    port_b_val = (port_b_val & 0xFD) | 0x01; /* Speaker 비활성화 (bit 1 = 0), Gate 활성화 (bit 0 = 1) */
+    outb(SYSTEM_CONTROL_PORT_B, port_b_val);
+
+    /* PIT Channel 2를 One-shot 모드로 프로그래밍하고 카운트 값을 설정합니다. */
+    outb(PIT_COMMAND_PORT, PIT_CMD_CH2_ONESHOT);
+    outb(PIT_CHANNEL2_PORT, (uint8_t)(PIT_CAL_COUNT & 0xFF));        /* LSB */
+    outb(PIT_CHANNEL2_PORT, (uint8_t)((PIT_CAL_COUNT >> 8) & 0xFF)); /* MSB */
+}
+
+bool Is_pit_channel2_done(void)
+{
+	// bit 5: 카운터가 0에 도달하면 1
+	return inb(SYSTEM_CONTROL_PORT_B) & (1 << 5);
+}
+
 /*
  * APIC_Timer_Init: PIT를 이용한 캘리브레이션 후 APIC 타이머를 시작합니다.
  *
@@ -139,9 +179,9 @@ void APIC_Init(void)
  */
 void APIC_Timer_Init(uint32_t frequency_hz)
 {
-    APIC_Write(APIC_TIMER_DIV_REG, 0x03);
+    APIC_Write(APIC_TIMER_DIV_REG, APIC_TIMER_DIV_16);
 
-    uint32_t ticks_per_sec;
+    uint32_t ticks_per_sec = 0;
 
     if (apic_calibrated_ticks_per_sec != 0)
     {
@@ -150,54 +190,45 @@ void APIC_Timer_Init(uint32_t frequency_hz)
          * PIT Channel 2는 공유 자원이므로 AP가 동시에 접근하면 오동작합니다.
          */
         ticks_per_sec = apic_calibrated_ticks_per_sec;
-        printf("APIC Timer (AP, LAPIC=%u): Reusing calibrated %u ticks/sec.\n",
-               APIC_Read(APIC_ID_REG) >> 24, ticks_per_sec);
+        printf("APIC Timer (AP, LAPIC=%u): Reusing calibrated %u ticks/sec.\n", APIC_Read(APIC_ID_REG) >> 24, ticks_per_sec);
     }
-    else
-    {
-        /* BSP 경우: PIT Channel 2로 10ms 캐리브레이션 수행 */
-    #define PIT_CALIBRATION_FREQ   100       /* 100Hz = 10ms 주기 */
-    #define PIT_BASE_FREQ          1193182
-    #define PIT_CAL_COUNT          (PIT_BASE_FREQ / PIT_CALIBRATION_FREQ)
+	else
+	{
+		/* APIC Timer를 one-shot 모드로 시작 (최대 카운트) */
+		APIC_Write(APIC_LVT_TIMER_REG, APIC_TIMER_MASKED | APIC_TIMER_VECTOR);
+		APIC_Write(APIC_TIMER_INIT_COUNT, 0xFFFFFFFF);
 
-    /* PIT Channel 2 설정: Mode 0 (One-shot), LSB/MSB */
-    outb(0x61, (inb(0x61) & 0xFD) | 0x01);  /* Gate 활성화, Speaker 비활성화 */
-    outb(0x43, 0xB0);                        /* Channel 2, Mode 0, LSB/MSB */
-    outb(0x42, (uint8_t)(PIT_CAL_COUNT & 0xFF));        /* LSB */
-    outb(0x42, (uint8_t)((PIT_CAL_COUNT >> 8) & 0xFF)); /* MSB */
+        pit_channel2_start();
 
-    /* APIC Timer를 one-shot 모드로 시작 (최대 카운트) */
-    APIC_Write(APIC_LVT_TIMER_REG, APIC_TIMER_MASKED | APIC_TIMER_VECTOR);
-    APIC_Write(APIC_TIMER_INIT_COUNT, 0xFFFFFFFF);
+		/* PIT Channel 2 출력이 High가 될 때까지 대기 (카운트 완료) */
+		while (!Is_pit_channel2_done())
+		{
+			/* busy wait */
+		}
 
-    /* PIT Channel 2 출력이 High가 될 때까지 대기 (카운트 완료) */
-    while (!(inb(0x61) & 0x20))
-    {
-        /* busy wait */
-    }
+		/* APIC Timer 정지 */
+		APIC_Write(APIC_LVT_TIMER_REG, APIC_TIMER_MASKED);
 
-    /* APIC Timer 정지 */
-    APIC_Write(APIC_LVT_TIMER_REG, APIC_TIMER_MASKED);
+		/* 경과한 APIC 틱 수 계산 */
+		uint32_t elapsed = 0xFFFFFFFF - APIC_Read(APIC_TIMER_CUR_COUNT);
 
-    /* 경과한 APIC 틱 수 계산 */
-        uint32_t elapsed = 0xFFFFFFFF - APIC_Read(APIC_TIMER_CUR_COUNT);
+		/*
+		 * elapsed 틱은 10ms(= 1/PIT_CALIBRATION_FREQ 초) 동안 발생한 수이므로
+		 * 버스 주파수 = elapsed * PIT_CALIBRATION_FREQ * divider
+		 * APIC 타이머 틱/초 = elapsed * PIT_CALIBRATION_FREQ (divider는 이미 적용됨)
+		 */
+		ticks_per_sec = elapsed * PIT_CALIBRATION_FREQ;
+		apic_calibrated_ticks_per_sec = ticks_per_sec; /* AP를 위해 저장 */
 
-        /*
-         * elapsed 틱은 10ms(= 1/PIT_CALIBRATION_FREQ 초) 동안 발생한 수이므로
-         * 버스 주파수 = elapsed * PIT_CALIBRATION_FREQ * divider
-         * APIC 타이머 틱/초 = elapsed * PIT_CALIBRATION_FREQ (divider는 이미 적용됨)
-         */
-        ticks_per_sec = elapsed * PIT_CALIBRATION_FREQ;
-        apic_calibrated_ticks_per_sec = ticks_per_sec; /* AP를 위해 저장 */
-
-        printf("APIC Timer Calibrated: %u ticks in 10ms, Ticks/sec = %u\n",
-               elapsed, ticks_per_sec);
-    } /* end BSP calibration block */
+		printf("APIC Timer Calibrated: %u ticks in 10ms, Ticks/sec = %u\n", elapsed, ticks_per_sec);
+	} /* end BSP calibration block */
 
     /* 원하는 주파수에 맞는 Initial Count 계산 */
     uint32_t init_count = ticks_per_sec / frequency_hz;
     if (init_count == 0)
+    {
         init_count = 1;
+    }
 
     /* LVT Timer Register 설정: Periodic 모드 + 벡터 48 */
     APIC_Write(APIC_LVT_TIMER_REG, APIC_TIMER_PERIODIC | APIC_TIMER_VECTOR);
@@ -205,8 +236,7 @@ void APIC_Timer_Init(uint32_t frequency_hz)
     /* Initial Count 설정 → 타이머 시작 */
     APIC_Write(APIC_TIMER_INIT_COUNT, init_count);
 
-    printf("APIC Timer Started: %u Hz (Initial Count: %u)\n",
-           frequency_hz, init_count);
+    printf("APIC Timer Started: %u Hz (Initial Count: %u)\n", frequency_hz, init_count);
 }
 
 /*

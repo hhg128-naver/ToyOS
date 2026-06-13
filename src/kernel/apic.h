@@ -54,6 +54,31 @@
 /* ICR 딜리버리 상태 (비트 12, 읽기 전용) */
 #define APIC_ICR_PENDING        (1 << 12)  /* 전송 대기 중 */
 
+/* APIC 타이머의 분주기 설정 값 (Divide Configuration Register에 쓰이는 인코딩)
+bits:  [31:4]  [3]  [2]  [1]  [0]
+		예약    D2   0    D1   D0
+						  ↑
+					 항상 0 (예약)
+분주값 = 2^(D2:D1:D0 + 1)   (단, 111일 때는 예외로 1)
+*/
+#define APIC_TIMER_DIV_1    0x0B
+#define APIC_TIMER_DIV_2    0x00
+#define APIC_TIMER_DIV_4    0x01
+#define APIC_TIMER_DIV_8    0x02
+#define APIC_TIMER_DIV_16   0x03
+#define APIC_TIMER_DIV_32   0x08
+#define APIC_TIMER_DIV_64   0x09
+#define APIC_TIMER_DIV_128  0x0A
+
+#define SYSTEM_CONTROL_PORT_B  0x61		// Port 0x61 (System Control Port B)이 Channel 2를 제어합니다.
+#define PIT_CHANNEL2_PORT      0x42
+#define PIT_COMMAND_PORT       0x43
+#define PIT_CMD_CH2_ONESHOT    0xB0      /* Channel 2, Mode 0 (One-Shot), LSB/MSB, Binary */
+
+#define PIT_CALIBRATION_FREQ   100       /* 100Hz = 10ms 주기 */
+#define PIT_BASE_FREQ          1193182
+#define PIT_CAL_COUNT          (PIT_BASE_FREQ / PIT_CALIBRATION_FREQ)
+
 /* ===== 함수 선언 ===== */
 
 /**

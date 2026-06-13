@@ -49,6 +49,7 @@ void kmain(BootInfo *boot_info)
     PIC_Init();
 
     /* MP Configuration Table 탐색 (멀티프로세서 정보 수집) */
+    /* Deprecated: MP_Init()는 더 이상 사용되지 않음 */
     MP_Init();
 
     /* ACPI MADT 파싱 (인터럽트 컨트롤러 토폴로지 수집) */
@@ -57,7 +58,7 @@ void kmain(BootInfo *boot_info)
     /* Local APIC 활성화 및 APIC Timer로 PIT 대체 */
     APIC_Init();
     APIC_Timer_Init(100); /* 100Hz (10ms 주기) */
-    PIC_MaskIRQ(0);       /* PIT(IRQ0) 마스킹 — APIC Timer가 타이머 역할 수행 */
+    PIC_MaskIRQ(PIC_IRQ_PIT); /* PIT(IRQ0) 마스킹 — APIC Timer가 타이머 역할 수행 */
 
     /* AP들을 깨우고 온라인 상태를 확인 (INIT-SIPI-SIPI 프로토콜) */
     SMP_Init();

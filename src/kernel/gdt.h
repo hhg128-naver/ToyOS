@@ -55,17 +55,17 @@ struct GDTPtr {
 #define GDT_KERNEL_DATA  0x10
 #define GDT_USER_DATA    0x1B // Index 3 | RPL 3
 #define GDT_USER_CODE    0x23 // Index 4 | RPL 3
-#define GDT_TSS          0x28 // Index 5 (16 bytes)
+#define GDT_TSS_START    0x28 // Index 5 (16 bytes, TSS Start selector)
 
 /* GDT 초기화 함수 */
 void InitGDT();
-void SetTSSStack(uint64_t stack_addr);
+void SetTSSStack(uint8_t cpu_index, uint64_t stack_addr);
 
 /**
  * InitGDT_AP: AP에 BSP의 GDT를 로드합니다.
  * AP가 ap_entry()에서 호출하여 커널 세그먼트를 활성화합니다.
  */
-void InitGDT_AP(void);
+void InitGDT_AP(uint8_t cpu_index);
 
 /* BSP의 GDT 포인터 (AP에서 접근) */
 extern struct GDTPtr gdt_ptr;

@@ -4,6 +4,7 @@
 #include "gdt.h"
 #include "idt.h"
 #include "pmm.h"
+#include "syscall.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -80,8 +81,20 @@ void ap_entry(void)
      *    MMIO 매핑은 BSP의 APIC_Init()에서 이미 완료됨 */
     APIC_Init_AP();
 
-    /* 2. BSP의 GDT를 이 AP에 로드 (세그먼트 레지스터 갱신 포함) */
-    InitGDT_AP();
+    /* 자신의 LAPIC ID로 cpu_index 찾기 */
+    uint32_t my_lapic_id = APIC_Read(APIC_ID_REG) >> 24;
+    uint8_t cpu_idx = 0;
+    for (int i = 0; i < SMP_MAX_CPUS; i++)
+    {
+        if (cpu_info[i].lapic_id == (uint8_t)my_lapic_id)
+        {
+            cpu_idx = cpu_info[i].cpu_index;
+            break;
+        }
+    }
+
+    /* 2. BSP의 GDT를 이 AP에 로드 (세그먼트 레지스터 갱신 및 per-AP TSS 설정 포함) */
+    InitGDT_AP(cpu_idx);
 
     /* 3. BSP의 IDT를 이 AP에 로드 (예외 핸들링 활성화) */
     LoadIDT_AP();
@@ -99,15 +112,11 @@ void ap_entry(void)
 
     InitFPU();          /* fninit: FPU 상태 초기화 */
 
-    uint32_t my_lapic_id = APIC_Read(APIC_ID_REG) >> 24;
+    /* 4-1. 시스템 콜 MSR 설정 활성화 (syscall/sysret 사용을 위해 각 CPU 코어마다 필수) */
+    InitSyscall();
 
-    for (int i = 0; i < SMP_MAX_CPUS; i++)
-    {
-        if (cpu_info[i].lapic_id == (uint8_t)my_lapic_id && !cpu_info[i].online)
-        {
-            cpu_info[i].online = 1;
-            break;
-        }
+    if (cpu_idx < SMP_MAX_CPUS) {
+        cpu_info[cpu_idx].online = 1;
     }
 
     /* 5. 온라인 CPU 카운트 원자적 증가 */
