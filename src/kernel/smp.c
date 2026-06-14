@@ -17,33 +17,7 @@ CPUInfo      cpu_info[SMP_MAX_CPUS];
 volatile int cpu_count_online = 0;
 
 /* 전역 커널 스핀락 (스케줄러 등 공유 자원 보호용) */
-spinlock_t g_kernel_lock = SPINLOCK_INIT;
-
-/* ===== 스핀락 구현 ===== */
-
-/*
- * spinlock_acquire: GCC/Clang의 __sync_lock_test_and_set 내장 함수를 사용한
- * 테스트-앤-셋 스핀락. 획득할 때까지 PAUSE 명령으로 busy-wait합니다.
- */
-void spinlock_acquire(spinlock_t *lock)
-{
-    while (__sync_lock_test_and_set(lock, 1))
-    {
-        /* PAUSE: 하이퍼스레딩 파이프라인 효율을 개선하고 전력 소모를 줄임 */
-        while (*lock)
-        {
-            __asm__ volatile("pause");
-        }
-    }
-}
-
-/*
- * spinlock_release: 메모리 배리어와 함께 락을 해제합니다.
- */
-void spinlock_release(spinlock_t *lock)
-{
-    __sync_lock_release(lock);
-}
+spinlock_t g_kernel_lock = {0};
 
 /* ===== 내부 헬퍼 함수 ===== */
 
@@ -115,7 +89,8 @@ void ap_entry(void)
     /* 4-1. 시스템 콜 MSR 설정 활성화 (syscall/sysret 사용을 위해 각 CPU 코어마다 필수) */
     InitSyscall();
 
-    if (cpu_idx < SMP_MAX_CPUS) {
+    if (cpu_idx < SMP_MAX_CPUS) 
+    {
         cpu_info[cpu_idx].online = 1;
     }
 
@@ -149,17 +124,113 @@ void ap_entry(void)
  *   5. SIPI × 2 전송 → booted_flag 폴링
  *   6. 다음 AP로 반복
  */
+/* ===== 내부 헬퍼 함수들 (SMP 리팩토링용) ===== */
+
+/* BSP 정보를 cpu_info[0]에 등록 */
+static void smp_register_bsp(uint32_t bsp_lapic_id)
+{
+    cpu_info[0].lapic_id         = (uint8_t)bsp_lapic_id;
+    cpu_info[0].cpu_index        = 0;
+    cpu_info[0].online           = 1;
+    cpu_info[0].kernel_stack_top = 0;
+    cpu_count_online             = 1;
+}
+
+/* AP를 부팅하기 위한 트램펄린 코드를 0x8000 물리 주소에 복사 */
+static void smp_copy_trampoline(void)
+{
+    uint32_t trampoline_size = (uint32_t)(ap_trampoline_bin_end - ap_trampoline_bin_start);
+    memcpy((void*)(uint64_t)AP_TRAMPOLINE_PHYS, ap_trampoline_bin_start, trampoline_size);
+    printf("SMP: Trampoline copied to 0x%x (%u bytes).\n", AP_TRAMPOLINE_PHYS, trampoline_size);
+}
+
+/* 지정된 AP 코어를 깨우고 초기화 대기 */
+static int smp_boot_ap(int cpu_idx, uint8_t lapic_id, uint64_t pml4_phys)
+{
+    /* 1. AP 전용 커널 스택 할당 (4KB) */
+    void *stack = PMM_AllocPage();
+    if (!stack)
+    {
+        printf("SMP: Failed to allocate stack for AP #%d (LAPIC ID=%u). Skipping.\n", cpu_idx, lapic_id);
+        return 0;
+    }
+    uint64_t stack_top = (uint64_t)stack + PAGE_SIZE;
+
+    /* 2. CPU 정보(cpu_info) 설정 */
+    cpu_info[cpu_idx].lapic_id         = lapic_id;
+    cpu_info[cpu_idx].cpu_index        = (uint8_t)cpu_idx;
+    cpu_info[cpu_idx].online           = 0;
+    cpu_info[cpu_idx].kernel_stack_top = stack_top;
+
+    /* 3. 공유 부팅 데이터 작성 */
+    volatile APBootData *boot_data = (volatile APBootData*)(uint64_t)AP_BOOT_DATA_PHYS;
+    boot_data->pml4_phys   = (uint32_t)pml4_phys;
+    boot_data->stack_top   = stack_top;
+    boot_data->entry_point = (uint64_t)ap_entry;
+    boot_data->booted_flag = 0;
+
+    printf("SMP: Starting AP #%d (LAPIC ID=%u)...\n", cpu_idx, lapic_id);
+
+    /* 4. INIT IPI 전송 */
+    APIC_SendIPI(lapic_id, 0, APIC_IPI_INIT);
+    smp_udelay(10000); /* 10ms 대기 */
+
+    /* 5. SIPI #1 전송 */
+    APIC_SendIPI(lapic_id, AP_SIPI_VECTOR, APIC_IPI_STARTUP);
+    smp_udelay(200);   /* 200µs 대기 */
+
+    /* 6. SIPI #2 전송 (첫 번째 무시를 위한 백업) */
+    APIC_SendIPI(lapic_id, AP_SIPI_VECTOR, APIC_IPI_STARTUP);
+
+    /* 7. AP 트램펄린 완료 flag 폴링 (최대 약 1초 대기) */
+    int timeout = 1000;
+    while (!boot_data->booted_flag && timeout > 0)
+    {
+        smp_udelay(1000); /* 1ms */
+        timeout--;
+    }
+
+    if (boot_data->booted_flag)
+    {
+        printf("SMP: AP #%d (LAPIC ID=%u) trampoline done.\n", cpu_idx, lapic_id);
+        return 1;
+    }
+    else
+    {
+        printf("SMP: AP #%d (LAPIC ID=%u) timed out — no response.\n", cpu_idx, lapic_id);
+        return 0;
+    }
+}
+
+/* 전체 SMP 초기화 완료 상태를 요약하여 출력 */
+static void smp_print_status(int detected_cpus)
+{
+    printf("\n=== SMP Initialization Complete ===\n");
+    printf("SMP: Online CPUs: %d / %d\n", cpu_count_online, detected_cpus);
+    for (int i = 0; i < SMP_MAX_CPUS; i++)
+    {
+        if (cpu_info[i].lapic_id == 0 && i > 0)
+            break;
+        printf("  CPU #%d: LAPIC ID=%u, %s\n",
+               i, cpu_info[i].lapic_id,
+               cpu_info[i].online ? "Online" : "Offline");
+    }
+    printf("===================================\n\n");
+}
+
+/* ===== SMP 초기화 ===== */
+
+/*
+ * SMP_Init: ACPI MADT에서 수집한 CPU 정보를 바탕으로
+ *           BSP를 제외한 모든 AP를 순차적으로 깨웁니다.
+ */
 void SMP_Init(void)
 {
     const ACPIInfo *acpi = ACPI_GetInfo();
 
     /* BSP를 cpu_info[0]에 등록 — acpi 검사 전에 항상 수행 */
     uint32_t bsp_lapic_id = APIC_Read(APIC_ID_REG) >> 24;
-    cpu_info[0].lapic_id         = (uint8_t)bsp_lapic_id;
-    cpu_info[0].cpu_index        = 0;
-    cpu_info[0].online           = 1;
-    cpu_info[0].kernel_stack_top = 0;
-    cpu_count_online             = 1;
+    smp_register_bsp(bsp_lapic_id);
 
     if (!acpi)
     {
@@ -177,27 +248,24 @@ void SMP_Init(void)
         return;
     }
 
-    /* ── 트램펄린 코드를 물리 주소 0x8000에 복사 ── */
-    uint32_t trampoline_size = (uint32_t)(ap_trampoline_bin_end - ap_trampoline_bin_start);
-    memcpy((void *)(uint64_t)AP_TRAMPOLINE_PHYS, ap_trampoline_bin_start, trampoline_size);
-    printf("SMP: Trampoline copied to 0x%x (%u bytes).\n",
-           AP_TRAMPOLINE_PHYS, trampoline_size);
+    /* 트램펄린 코드를 물리 주소 0x8000에 복사 */
+    smp_copy_trampoline();
 
     /* BSP의 PML4 물리 주소 (CR3) 읽기 */
     uint64_t pml4_phys;
     __asm__ volatile("mov %%cr3, %0" : "=r"(pml4_phys));
 
-
-    /* ── 각 AP를 순차적으로 부팅 ── */
+    /* 각 AP를 순차적으로 부팅 */
     int ap_num = 0;
-
     for (int i = 0; i < acpi->cpu_count; i++)
     {
         uint8_t lapic_id = acpi->cpu_apic_ids[i];
 
-        /* BSP는 건너뜀 */
+        /* BSP 코어는 건너뜀 */
         if (lapic_id == (uint8_t)bsp_lapic_id)
+        {
             continue;
+        }
 
         ap_num++;
         int cpu_idx = ap_num; /* AP 인덱스 (1부터 시작) */
@@ -208,73 +276,12 @@ void SMP_Init(void)
             break;
         }
 
-        /* AP 전용 커널 스택 할당 (4KB = 1 페이지) */
-        void *stack = PMM_AllocPage();
-        if (!stack)
-        {
-            printf("SMP: Failed to allocate stack for AP #%d. Skipping.\n", cpu_idx);
-            continue;
-        }
-        uint64_t stack_top = (uint64_t)stack + PAGE_SIZE;
-
-        /* cpu_info 등록 */
-        cpu_info[cpu_idx].lapic_id         = lapic_id;
-        cpu_info[cpu_idx].cpu_index        = (uint8_t)cpu_idx;
-        cpu_info[cpu_idx].online           = 0;
-        cpu_info[cpu_idx].kernel_stack_top = stack_top;
-
-        /* 공유 부팅 데이터 작성 */
-        volatile APBootData *boot_data =
-            (volatile APBootData *)(uint64_t)AP_BOOT_DATA_PHYS;
-
-        boot_data->pml4_phys   = (uint32_t)pml4_phys;
-        boot_data->stack_top   = stack_top;
-        boot_data->entry_point = (uint64_t)ap_entry;
-        boot_data->booted_flag = 0;
-
-        printf("SMP: Starting AP #%d (LAPIC ID=%u)...\n", cpu_idx, lapic_id);
-
-        /* ── INIT IPI 전송 ── */
-        APIC_SendIPI(lapic_id, 0, APIC_IPI_INIT);
-        smp_udelay(10000); /* 10ms 대기 */
-
-        /* ── SIPI #1 전송 ── */
-        APIC_SendIPI(lapic_id, AP_SIPI_VECTOR, APIC_IPI_STARTUP);
-        smp_udelay(200);   /* 200µs 대기 */
-
-        /* ── SIPI #2 전송 (첫 번째가 무시된 경우를 대비) ── */
-        APIC_SendIPI(lapic_id, AP_SIPI_VECTOR, APIC_IPI_STARTUP);
-
-        /* ── booted_flag 폴링 (최대 약 1초 대기) ── */
-        int timeout = 1000;
-        while (!boot_data->booted_flag && timeout > 0)
-        {
-            smp_udelay(1000); /* 1ms */
-            timeout--;
-        }
-
-        if (boot_data->booted_flag)
-        {
-            printf("SMP: AP #%d (LAPIC ID=%u) trampoline done.\n", cpu_idx, lapic_id);
-        }
-        else
-        {
-            printf("SMP: AP #%d (LAPIC ID=%u) timed out — no response.\n", cpu_idx, lapic_id);
-        }
+        smp_boot_ap(cpu_idx, lapic_id, pml4_phys);
     }
 
-    /* 모든 AP가 ap_entry()를 완료할 시간을 잠시 줌 */
-    smp_udelay(50000); /* 50ms */
+    /* 모든 AP가 ap_entry()를 완료할 시간을 잠시 줌 (50ms) */
+    smp_udelay(50000);
 
-    printf("\n=== SMP Initialization Complete ===\n");
-    printf("SMP: Online CPUs: %d / %d\n", cpu_count_online, acpi->cpu_count);
-    for (int i = 0; i < SMP_MAX_CPUS; i++)
-    {
-        if (cpu_info[i].lapic_id == 0 && i > 0)
-            break;
-        printf("  CPU #%d: LAPIC ID=%u, %s\n",
-               i, cpu_info[i].lapic_id,
-               cpu_info[i].online ? "Online" : "Offline");
-    }
-    printf("===================================\n\n");
+    /* 최종 온라인 및 상태 진단 출력 */
+    smp_print_status(acpi->cpu_count);
 }

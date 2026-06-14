@@ -43,24 +43,7 @@ typedef struct
     uint64_t      kernel_stack_top; /* AP 커널 스택 최상단 */
 } CPUInfo;
 
-/* ===== 스핀락 ===== */
-
-/*
- * spinlock_t: 단순 테스트-앤-셋 기반 스핀락.
- * 값 0 = 해제, 1 = 획득.
- */
-typedef volatile int spinlock_t;
-#define SPINLOCK_INIT   0
-
-/**
- * spinlock_acquire: 스핀락을 획득합니다. 획득할 때까지 busy-wait합니다.
- */
-void spinlock_acquire(spinlock_t *lock);
-
-/**
- * spinlock_release: 스핀락을 해제합니다.
- */
-void spinlock_release(spinlock_t *lock);
+#include "spinlock.h"
 
 /* ===== 전역 변수 ===== */
 

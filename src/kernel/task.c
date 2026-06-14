@@ -5,6 +5,7 @@
 #include "vmm.h"
 #include "pmm.h"
 #include "smp.h"
+#include "spinlock.h"
 #include "apic.h"
 #include <stdio.h>
 #include <stddef.h>
@@ -62,28 +63,24 @@ void InitializeTaskSystem() {
 }
 
 Task* CreateTask(void (*entryPoint)()) {
-    uint64_t flags = SaveAndDisableInterrupts();
-    spinlock_acquire(&g_kernel_lock);
+    uint64_t flags = spinlock_lock_irqsave(&g_kernel_lock);
 
     if (task_count >= MAX_TASKS) {
         kPrintf("Error: Max tasks reached.\n");
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
 
     Task* newTask = (Task*)kmalloc(sizeof(Task));
     if (!newTask) {
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
     
     void* stack = kmalloc(TASK_STACK_SIZE);
     if (!stack) {
         kfree(newTask);
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
 
@@ -113,35 +110,30 @@ Task* CreateTask(void (*entryPoint)()) {
     newTask->heap_end = 0x60000000;
     tasks[task_count++] = newTask;
     
-    spinlock_release(&g_kernel_lock);
-    RestoreInterrupts(flags);
+    spinlock_unlock_irqrestore(&g_kernel_lock, flags);
     kPrintf("Created New Task.\n");
     return newTask;
 }
 
 Task* CreateUserTask(void (*entryPoint)(), int arg) {
-    uint64_t flags = SaveAndDisableInterrupts();
-    spinlock_acquire(&g_kernel_lock);
+    uint64_t flags = spinlock_lock_irqsave(&g_kernel_lock);
 
     if (task_count >= MAX_TASKS) {
         kPrintf("Error: Max tasks reached.\n");
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
 
     Task* newTask = (Task*)kmalloc(sizeof(Task));
     if (!newTask) {
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
     
     void* pml4 = VMM_CreateAddressSpace();
     if (!pml4) {
         kfree(newTask);
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
 
@@ -149,8 +141,7 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     if (!kstack) {
         VMM_FreeAddressSpace(pml4);
         kfree(newTask);
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
 
@@ -159,8 +150,7 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
         kfree(kstack);
         VMM_FreeAddressSpace(pml4);
         kfree(newTask);
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
     void* ustack_virt = (void*)0x00007FFFFFFF0000;
@@ -198,15 +188,13 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     newTask->heap_end = 0x60000000;
     tasks[task_count++] = newTask;
     
-    spinlock_release(&g_kernel_lock);
-    RestoreInterrupts(flags);
+    spinlock_unlock_irqrestore(&g_kernel_lock, flags);
     printf("Created Isolated User Task with arg: %d, PML4: %p\n", arg, newTask->pml4);
     return newTask;
 }
 
 Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
-    uint64_t flags = SaveAndDisableInterrupts();
-    spinlock_acquire(&g_kernel_lock);
+    uint64_t flags = spinlock_lock_irqsave(&g_kernel_lock);
 
     int slot = -1;
     for (int i = 0; i < MAX_TASKS; i++)
@@ -220,23 +208,20 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
 
     if (slot == -1) {
         kPrintf("Error: Max tasks reached.\n");
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
 
     void* kstack = kmalloc(TASK_STACK_SIZE);
     if (!kstack) {
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
     
     void* ustack_phys = PMM_AllocPage();
     if (!ustack_phys) {
         kfree(kstack);
-        spinlock_release(&g_kernel_lock);
-        RestoreInterrupts(flags);
+        spinlock_unlock_irqrestore(&g_kernel_lock, flags);
         return NULL;
     }
     void* ustack_virt = (void*)0x00007FFFFFFF0000;
@@ -249,8 +234,7 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
         if (!newTask) {
             PMM_FreePage(ustack_phys);
             kfree(kstack);
-            spinlock_release(&g_kernel_lock);
-            RestoreInterrupts(flags);
+            spinlock_unlock_irqrestore(&g_kernel_lock, flags);
             return NULL;
         }
         tasks[slot] = newTask;
@@ -281,8 +265,7 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     newTask->rsp = (uint64_t)ctx;
     newTask->state = TASK_READY;
     
-    spinlock_release(&g_kernel_lock);
-    RestoreInterrupts(flags);
+    spinlock_unlock_irqrestore(&g_kernel_lock, flags);
     printf("Created ELF User Task at slot %d, Entry: %p\n", slot, (void*)entryPoint);
     return newTask;
 }
@@ -338,7 +321,7 @@ uint64_t Schedule(uint64_t current_rsp) {
      * Schedule()은 인터럽트 컨텍스트(IF=0)에서만 호출됩니다.
      * 스핀락으로 다른 CPU의 동시 접근을 막습니다.
      */
-    spinlock_acquire(&g_kernel_lock);
+    spinlock_lock(&g_kernel_lock);
 
     uint32_t cpu_id = get_cpu_id();
     int my_task_idx = per_cpu_task_idx[cpu_id];
@@ -351,7 +334,7 @@ uint64_t Schedule(uint64_t current_rsp) {
         kPutChar(boot_info_global, spinner_x, 0, spin[(sched_counts[cpu_id]++ / 10) % 4], 0x00FF0000, 0x00000033);
 
     if (task_count <= 1) {
-        spinlock_release(&g_kernel_lock);
+        spinlock_unlock(&g_kernel_lock);
         return current_rsp;
     }
 
@@ -378,7 +361,7 @@ uint64_t Schedule(uint64_t current_rsp) {
         if (my_task_idx >= 0 && tasks[my_task_idx] &&
             tasks[my_task_idx]->state != TASK_DEAD)
             tasks[my_task_idx]->state = TASK_RUNNING;
-        spinlock_release(&g_kernel_lock);
+        spinlock_unlock(&g_kernel_lock);
         return current_rsp;
     }
 
@@ -409,7 +392,7 @@ uint64_t Schedule(uint64_t current_rsp) {
     }
 
     uint64_t next_rsp = next_task->rsp;
-    spinlock_release(&g_kernel_lock);
+    spinlock_unlock(&g_kernel_lock);
     return next_rsp;
 }
 
