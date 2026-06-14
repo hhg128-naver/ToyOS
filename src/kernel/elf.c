@@ -38,20 +38,20 @@ Task *LoadELFProcess(const char *filename, int arg)
 {
     if (vfs_root == NULL)
     {
-        printf("ELF Loader: VFS Root is NULL\n");
+        kPrintf("ELF Loader: VFS Root is NULL\n");
         return NULL;
     }
 
     VFS_Node *target_node = VFS_FindFile(vfs_root, filename);
     if (!target_node)
     {
-        printf("ELF Loader: File '%s' not found.\n", filename);
+        kPrintf("ELF Loader: File '%s' not found.\n", filename);
         return NULL;
     }
 
     if (target_node->flags & VFS_DIRECTORY)
     {
-        printf("ELF Loader: '%s' is a directory.\n", filename);
+        kPrintf("ELF Loader: '%s' is a directory.\n", filename);
         free(target_node);
         return NULL;
     }
@@ -60,7 +60,7 @@ Task *LoadELFProcess(const char *filename, int arg)
     uint32_t bytes_read = VFS_Read(target_node, 0, sizeof(Elf64_Ehdr), (uint8_t *)&header);
     if (bytes_read != sizeof(Elf64_Ehdr))
     {
-        printf("ELF Loader: Failed to read ELF Header.\n");
+        kPrintf("ELF Loader: Failed to read ELF Header.\n");
         free(target_node);
         return NULL;
     }
@@ -68,21 +68,21 @@ Task *LoadELFProcess(const char *filename, int arg)
     if (header.e_ident[0] != 0x7F || header.e_ident[1] != 'E' ||
         header.e_ident[2] != 'L' || header.e_ident[3] != 'F')
     {
-        printf("ELF Loader: Not a valid ELF file.\n");
+        kPrintf("ELF Loader: Not a valid ELF file.\n");
         free(target_node);
         return NULL;
     }
 
     if (header.e_ident[4] != 2)
     {
-        printf("ELF Loader: Not a 64-bit ELF.\n");
+        kPrintf("ELF Loader: Not a 64-bit ELF.\n");
         free(target_node);
         return NULL;
     }
 
     if (header.e_machine != 62)
     {
-        printf("ELF Loader: Not an x86_64 executable.\n");
+        kPrintf("ELF Loader: Not an x86_64 executable.\n");
         free(target_node);
         return NULL;
     }
@@ -92,7 +92,7 @@ Task *LoadELFProcess(const char *filename, int arg)
     Elf64_Phdr *phdrs = (Elf64_Phdr *)kmalloc(phdr_size);
     if (!phdrs)
     {
-        printf("ELF Loader: Memory allocation failed.\n");
+        kPrintf("ELF Loader: Memory allocation failed.\n");
         free(target_node);
         return NULL;
     }
@@ -102,7 +102,7 @@ Task *LoadELFProcess(const char *filename, int arg)
     void *pml4 = VMM_CreateAddressSpace();
     if (!pml4)
     {
-        printf("ELF Loader: Failed to create address space.\n");
+        kPrintf("ELF Loader: Failed to create address space.\n");
         kfree(phdrs);
         free(target_node);
         return NULL;
@@ -135,7 +135,7 @@ Task *LoadELFProcess(const char *filename, int arg)
             void *phys = PMM_AllocPage();
             if (!phys)
             {
-                printf("ELF Loader: Out of physical memory!\n");
+                kPrintf("ELF Loader: Out of physical memory!\n");
                 VMM_FreeAddressSpace(pml4);
                 kfree(phdrs);
                 free(target_node);

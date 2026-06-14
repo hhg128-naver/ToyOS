@@ -249,8 +249,20 @@ void VMM_FreeAddressSpace(void *pml4_phys)
 
 	pt_entry *pml4 = (pt_entry *)pml4_phys;
 
-	/* PML4의 모든 엔트리를 순회하며 PAGE_USER가 설정된 것들을 재귀적으로 해제 */
-	VMM_FreeRecursive(pml4, 0);
+	/* 유저 영역은 오직 PML4의 0번째 엔트리 하위에만 존재하므로, 0번 엔트리만 재귀적으로 해제합니다. */
+	if (pml4[0] & PAGE_PRESENT)
+	{
+		if (pml4[0] & PAGE_USER)
+		{
+			void *child = (void *)(pml4[0] & 0x000FFFFFFFFFF000ULL);
+			if (child)
+			{
+				VMM_FreeRecursive((pt_entry *)child, 1); // level 1 (PDPT)부터 시작
+				PMM_FreePage(child);
+				pml4[0] = 0;
+			}
+		}
+	}
 
 	/* PML4 자체 해제 */
 	PMM_FreePage(pml4_phys);

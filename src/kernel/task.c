@@ -189,7 +189,7 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     tasks[task_count++] = newTask;
     
     spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-    printf("Created Isolated User Task with arg: %d, PML4: %p\n", arg, newTask->pml4);
+    kPrintf("Created Isolated User Task with arg: %d, PML4: %p\n", arg, newTask->pml4);
     return newTask;
 }
 
@@ -266,7 +266,7 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     newTask->state = TASK_READY;
     
     spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-    printf("Created ELF User Task at slot %d, Entry: %p\n", slot, (void*)entryPoint);
+    kPrintf("Created ELF User Task at slot %d, Entry: %p\n", slot, (void*)entryPoint);
     return newTask;
 }
 
@@ -360,7 +360,15 @@ uint64_t Schedule(uint64_t current_rsp) {
         /* READY 태스크 없음: 현재 태스크를 다시 RUNNING으로 */
         if (my_task_idx >= 0 && tasks[my_task_idx] &&
             tasks[my_task_idx]->state != TASK_DEAD)
+        {
             tasks[my_task_idx]->state = TASK_RUNNING;
+        }
+        else
+        {
+            /* 현재 태스크가 DEAD이거나 유효하지 않다면, per_cpu_task_idx를 -1로 리셋하여
+             * 다음번 스케줄링 시 새로 로드될 태스크의 컨텍스트를 덮어쓰지 않도록 합니다. */
+            per_cpu_task_idx[cpu_id] = -1;
+        }
         spinlock_unlock(&g_kernel_lock);
         return current_rsp;
     }
@@ -392,8 +400,59 @@ uint64_t Schedule(uint64_t current_rsp) {
         SetTSSStack(target_cpu_idx, kstack_top);
     }
 
+    /* TASK_DEAD 자원 격리 로직 */
+    Task* tasks_to_reclaim[MAX_TASKS];
+    int reclaim_count = 0;
+
+    for (int i = 0; i < task_count; i++)
+    {
+        if (tasks[i] && tasks[i]->state == TASK_DEAD)
+        {
+            /* 현재 어떤 CPU에서도 이 태스크를 실행 중(per_cpu_task_idx)이 아닌지 검사 */
+            bool in_use = false;
+            for (int cpu = 0; cpu < SMP_MAX_CPUS; cpu++)
+            {
+                if (per_cpu_task_idx[cpu] == i)
+                {
+                    in_use = true;
+                    break;
+                }
+            }
+
+            if (!in_use)
+            {
+                tasks_to_reclaim[reclaim_count++] = tasks[i];
+                tasks[i] = NULL;
+            }
+        }
+    }
+
     uint64_t next_rsp = next_task->rsp;
     spinlock_unlock(&g_kernel_lock);
+
+    /* 스핀락 해제 후 안전한 락 외부 공간에서 자원 정리 수행 (데드락 방지) */
+    for (int i = 0; i < reclaim_count; i++)
+    {
+        Task* dead_task = tasks_to_reclaim[i];
+        if (dead_task)
+        {
+            /* 1. 페이지 디렉토리(PML4) 및 매핑된 사용자 영역 페이지 전체 해제 */
+            if (dead_task->pml4)
+            {
+                VMM_FreeAddressSpace(dead_task->pml4);
+            }
+
+            /* 2. 커널 스택 메모리 해제 */
+            if (dead_task->stack_base)
+            {
+                kfree(dead_task->stack_base);
+            }
+
+            /* 3. 태스크 구조체 해제 */
+            kfree(dead_task);
+        }
+    }
+
     return next_rsp;
 }
 

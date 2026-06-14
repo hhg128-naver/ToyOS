@@ -41,14 +41,14 @@ static int ACPI_ValidateRSDP(RSDP *rsdp)
     /* 시그니처 검증: "RSD PTR " */
     if (memcmp(rsdp->signature, ACPI_SIG_RSDP, 8) != 0)
     {
-        printf("ACPI: Invalid RSDP signature.\n");
+        kPrintf("ACPI: Invalid RSDP signature.\n");
         return 0;
     }
 
     /* ACPI 1.0 부분 체크섬 (처음 20바이트) */
     if (ACPI_Checksum(rsdp, 20) != 0)
     {
-        printf("ACPI: RSDP checksum (v1.0) failed.\n");
+        kPrintf("ACPI: RSDP checksum (v1.0) failed.\n");
         return 0;
     }
 
@@ -58,7 +58,7 @@ static int ACPI_ValidateRSDP(RSDP *rsdp)
         XSDP *xsdp = (XSDP *)rsdp;
         if (ACPI_Checksum(xsdp, xsdp->length) != 0)
         {
-            printf("ACPI: XSDP extended checksum failed.\n");
+            kPrintf("ACPI: XSDP extended checksum failed.\n");
             return 0;
         }
     }
@@ -85,14 +85,14 @@ static ACPISDTHeader* ACPI_FindTable(RSDP *rsdp, uint32_t signature)
 
         if (!xsdt)
         {
-            printf("ACPI: XSDT address is NULL, falling back to RSDT.\n");
+            kPrintf("ACPI: XSDT address is NULL, falling back to RSDT.\n");
             goto use_rsdt;
         }
 
         /* XSDT 체크섬 검증 */
         if (ACPI_Checksum(xsdt, xsdt->header.length) != 0)
         {
-            printf("ACPI: XSDT checksum failed, falling back to RSDT.\n");
+            kPrintf("ACPI: XSDT checksum failed, falling back to RSDT.\n");
             goto use_rsdt;
         }
 
@@ -100,7 +100,7 @@ static ACPISDTHeader* ACPI_FindTable(RSDP *rsdp, uint32_t signature)
         int entry_count = (xsdt->header.length - sizeof(ACPISDTHeader)) / sizeof(uint64_t);
         uint64_t *entries = (uint64_t *)((uint8_t *)xsdt + sizeof(ACPISDTHeader));
 
-        printf("ACPI: XSDT at %p, %d entries\n", (void *)xsdt, entry_count);
+        kPrintf("ACPI: XSDT at %p, %d entries\n", (void *)xsdt, entry_count);
 
         for (int i = 0; i < entry_count; i++)
         {
@@ -111,7 +111,7 @@ static ACPISDTHeader* ACPI_FindTable(RSDP *rsdp, uint32_t signature)
             }
         }
 
-        printf("ACPI: Table 0x%08x not found in XSDT.\n", signature);
+        kPrintf("ACPI: Table 0x%08x not found in XSDT.\n", signature);
         return NULL;
     }
 
@@ -124,14 +124,14 @@ use_rsdt:
 
         if (!rsdt)
         {
-            printf("ACPI: RSDT address is NULL.\n");
+            kPrintf("ACPI: RSDT address is NULL.\n");
             return NULL;
         }
 
         /* RSDT 체크섬 검증 */
         if (ACPI_Checksum(rsdt, rsdt->header.length) != 0)
         {
-            printf("ACPI: RSDT checksum failed.\n");
+            kPrintf("ACPI: RSDT checksum failed.\n");
             return NULL;
         }
 
@@ -139,7 +139,7 @@ use_rsdt:
         int entry_count = (rsdt->header.length - sizeof(ACPISDTHeader)) / sizeof(uint32_t);
         uint32_t *entries = (uint32_t *)((uint8_t *)rsdt + sizeof(ACPISDTHeader));
 
-        printf("ACPI: RSDT at %p, %d entries\n", (void *)rsdt, entry_count);
+        kPrintf("ACPI: RSDT at %p, %d entries\n", (void *)rsdt, entry_count);
 
         for (int i = 0; i < entry_count; i++)
         {
@@ -150,7 +150,7 @@ use_rsdt:
             }
         }
 
-        printf("ACPI: Table 0x%08x not found in RSDT.\n", signature);
+        kPrintf("ACPI: Table 0x%08x not found in RSDT.\n", signature);
         return NULL;
     }
 }
@@ -172,20 +172,20 @@ static int ACPI_ParseMADT(MADT *madt)
     /* 체크섬 검증 */
     if (ACPI_Checksum(madt, madt->header.length) != 0)
     {
-        printf("ACPI: MADT checksum failed.\n");
+        kPrintf("ACPI: MADT checksum failed.\n");
         return -1;
     }
 
     /* MADT 헤더 정보 출력 */
-    printf("ACPI MADT (Multiple APIC Description Table):\n");
-    printf("  Local APIC Address: 0x%08x\n", madt->lapic_address);
-    printf("  Flags: 0x%08x", madt->flags);
+    kPrintf("ACPI MADT (Multiple APIC Description Table):\n");
+    kPrintf("  Local APIC Address: 0x%08x\n", madt->lapic_address);
+    kPrintf("  Flags: 0x%08x", madt->flags);
     if (madt->flags & 0x01)
     {
-        printf(" (Dual 8259 PICs present)");
+        kPrintf(" (Dual 8259 PICs present)");
         acpi_info.pcat_compat = 1;
     }
-    printf("\n");
+    kPrintf("\n");
 
     /* Local APIC 기본 주소 저장 */
     acpi_info.lapic_address = (uint64_t)madt->lapic_address;
@@ -201,7 +201,7 @@ static int ACPI_ParseMADT(MADT *madt)
         /* 안전 검사: 엔트리 길이가 0이면 무한 루프 방지 */
         if (madt_entry->length < 2)
         {
-            printf("ACPI: Invalid MADT entry length (%d) at offset 0x%x\n", madt_entry->length, (uint32_t)(madt_entry_ptr - (uint8_t *)madt));
+            kPrintf("ACPI: Invalid MADT entry length (%d) at offset 0x%x\n", madt_entry->length, (uint32_t)(madt_entry_ptr - (uint8_t *)madt));
             break;
         }
 
@@ -222,7 +222,7 @@ static int ACPI_ParseMADT(MADT *madt)
                                  (local_apic->flags & MADT_LAPIC_FLAG_ONLINE_CAPABLE) ? "Online Capable" :
                                  "Disabled";
 
-            printf("  [Local APIC] Processor ID=%u, APIC ID=%u, %s\n", local_apic->acpi_processor_id, local_apic->apic_id, status);
+            kPrintf("  [Local APIC] Processor ID=%u, APIC ID=%u, %s\n", local_apic->acpi_processor_id, local_apic->apic_id, status);
 
             if (usable && acpi_info.cpu_count < ACPI_MAX_CPUS)
             {
@@ -236,7 +236,7 @@ static int ACPI_ParseMADT(MADT *madt)
         {
             MADTIOApic* io_apic = (MADTIOApic*)madt_entry_ptr;
 
-            printf("  [I/O APIC] ID=%u, Address=0x%08x, GSI Base=%u\n", io_apic->io_apic_id, io_apic->io_apic_address, io_apic->gsi_base);
+            kPrintf("  [I/O APIC] ID=%u, Address=0x%08x, GSI Base=%u\n", io_apic->io_apic_id, io_apic->io_apic_address, io_apic->gsi_base);
 
             if (acpi_info.ioapic_count < ACPI_MAX_IOAPICS)
             {
@@ -250,7 +250,7 @@ static int ACPI_ParseMADT(MADT *madt)
         {
             MADTIntSrcOverride* iso = (MADTIntSrcOverride*)madt_entry_ptr;
 
-            printf("  [Int Source Override] Bus=%u, IRQ=%u -> GSI=%u, Flags=0x%04x\n", iso->bus_source, iso->irq_source, iso->gsi, iso->flags);
+            kPrintf("  [Int Source Override] Bus=%u, IRQ=%u -> GSI=%u, Flags=0x%04x\n", iso->bus_source, iso->irq_source, iso->gsi, iso->flags);
 
             if (acpi_info.iso_count < ACPI_MAX_ISO)
             {
@@ -262,7 +262,7 @@ static int ACPI_ParseMADT(MADT *madt)
 
         case MADT_ENTRY_NMI_SOURCE:
         {
-            printf("  [NMI Source] (length=%u)\n", madt_entry->length);
+            kPrintf("  [NMI Source] (length=%u)\n", madt_entry->length);
             break;
         }
 
@@ -271,7 +271,7 @@ static int ACPI_ParseMADT(MADT *madt)
             MADTLocalAPICNMI* nmi = (MADTLocalAPICNMI*)madt_entry_ptr;
 
             const char *target = (nmi->acpi_processor_id == 0xFF) ? "All CPUs" : "Specific";
-            printf("  [Local APIC NMI] Processor=%s (ID=%u), LINT#%u, Flags=0x%04x\n", target, nmi->acpi_processor_id, nmi->lint, nmi->flags);
+            kPrintf("  [Local APIC NMI] Processor=%s (ID=%u), LINT#%u, Flags=0x%04x\n", target, nmi->acpi_processor_id, nmi->lint, nmi->flags);
             break;
         }
 
@@ -279,7 +279,7 @@ static int ACPI_ParseMADT(MADT *madt)
         {
             MADTLAPICAddrOverride* local_apic_override = (MADTLAPICAddrOverride*)madt_entry_ptr;
 
-            printf("  [LAPIC Address Override] 0x%08x%08x\n",
+            kPrintf("  [LAPIC Address Override] 0x%08x%08x\n",
                    (uint32_t)(local_apic_override->lapic_address >> 32),
                    (uint32_t)(local_apic_override->lapic_address & 0xFFFFFFFF));
 
@@ -293,7 +293,7 @@ static int ACPI_ParseMADT(MADT *madt)
             MADTLocalX2APIC *x2apic = (MADTLocalX2APIC *)madt_entry_ptr;
 
             const char *status = (x2apic->flags & MADT_LAPIC_FLAG_ENABLED) ? "Enabled" : "Disabled";
-            printf("  [Local x2APIC] UID=%u, x2APIC ID=%u, %s\n", x2apic->acpi_processor_uid, x2apic->x2apic_id, status);
+            kPrintf("  [Local x2APIC] UID=%u, x2APIC ID=%u, %s\n", x2apic->acpi_processor_uid, x2apic->x2apic_id, status);
 
             /* x2APIC ID는 8비트를 초과할 수 있으므로 별도 처리가 필요할 수 있음 */
             if ((x2apic->flags & MADT_LAPIC_FLAG_ENABLED) && acpi_info.cpu_count < ACPI_MAX_CPUS && x2apic->x2apic_id <= 0xFF)
@@ -305,7 +305,7 @@ static int ACPI_ParseMADT(MADT *madt)
         }
 
         default:
-            printf("  [Unknown MADT Entry] Type=%u, Length=%u\n", madt_entry->type, madt_entry->length);
+            kPrintf("  [Unknown MADT Entry] Type=%u, Length=%u\n", madt_entry->type, madt_entry->length);
             break;
         }
 
@@ -326,17 +326,17 @@ int ACPI_Init(BootInfo *boot_info)
     /* 결과 구조체 초기화 */
     memset(&acpi_info, 0, sizeof(ACPIInfo));
 
-    printf("\n=== ACPI Table Detection ===\n");
+    kPrintf("\n=== ACPI Table Detection ===\n");
 
     /* 1. RSDP 확인 */
     if (!boot_info->rsdp)
     {
-        printf("ACPI: RSDP not provided by bootloader.\n");
+        kPrintf("ACPI: RSDP not provided by bootloader.\n");
         return -1;
     }
 
     RSDP *rsdp = (RSDP *)boot_info->rsdp;
-    printf("ACPI: RSDP at %p\n", (void *)rsdp);
+    kPrintf("ACPI: RSDP at %p\n", (void *)rsdp);
 
     /* RSDP 유효성 검증 */
     if (!ACPI_ValidateRSDP(rsdp))
@@ -347,7 +347,7 @@ int ACPI_Init(BootInfo *boot_info)
     /* OEM ID 출력 */
     char oem_id[7] = {0};
     memcpy(oem_id, rsdp->oem_id, 6);
-    printf("ACPI: OEM='%s', Revision=%u (ACPI %s)\n",
+    kPrintf("ACPI: OEM='%s', Revision=%u (ACPI %s)\n",
            oem_id, rsdp->revision,
            rsdp->revision >= 2 ? "2.0+" : "1.0");
 
@@ -357,30 +357,30 @@ int ACPI_Init(BootInfo *boot_info)
     ACPISDTHeader *madt_header = ACPI_FindTable(rsdp, ACPI_SIG_MADT);
     if (!madt_header)
     {
-        printf("ACPI: MADT (APIC table) not found.\n");
+        kPrintf("ACPI: MADT (APIC table) not found.\n");
         return -1;
     }
 
-    printf("ACPI: MADT found at %p (Length: %u bytes)\n",
+    kPrintf("ACPI: MADT found at %p (Length: %u bytes)\n",
            (void *)madt_header, madt_header->length);
 
     /* 3. MADT 파싱 */
     MADT *madt = (MADT *)madt_header;
     if (ACPI_ParseMADT(madt) != 0)
     {
-        printf("ACPI: Failed to parse MADT.\n");
+        kPrintf("ACPI: Failed to parse MADT.\n");
         return -1;
     }
 
     /* 결과 요약 출력 */
-    printf("\n=== ACPI MADT Summary ===\n");
-    printf("  ACPI Revision:     %s\n", acpi_info.acpi_revision >= 2 ? "2.0+" : "1.0");
-    printf("  Total CPUs:        %d\n", acpi_info.cpu_count);
-    printf("  Total I/O APICs:   %d\n", acpi_info.ioapic_count);
-    printf("  IRQ Overrides:     %d\n", acpi_info.iso_count);
-    printf("  LAPIC Address:     %p\n", (void *)acpi_info.lapic_address);
-    printf("  Dual 8259 PICs:    %s\n", acpi_info.pcat_compat ? "Yes" : "No");
-    printf("=========================\n\n");
+    kPrintf("\n=== ACPI MADT Summary ===\n");
+    kPrintf("  ACPI Revision:     %s\n", acpi_info.acpi_revision >= 2 ? "2.0+" : "1.0");
+    kPrintf("  Total CPUs:        %d\n", acpi_info.cpu_count);
+    kPrintf("  Total I/O APICs:   %d\n", acpi_info.ioapic_count);
+    kPrintf("  IRQ Overrides:     %d\n", acpi_info.iso_count);
+    kPrintf("  LAPIC Address:     %p\n", (void *)acpi_info.lapic_address);
+    kPrintf("  Dual 8259 PICs:    %s\n", acpi_info.pcat_compat ? "Yes" : "No");
+    kPrintf("=========================\n\n");
 
     acpi_initialized = 1;
     return 0;

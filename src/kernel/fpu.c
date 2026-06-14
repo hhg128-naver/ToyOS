@@ -7,7 +7,7 @@ void InitializeFPU(void)
 {
     uint64_t initial_cr0 = ReadCR0();
     uint64_t initial_cr4 = ReadCR4();
-    printf("Initial Processor State - CR0: %p, CR4: %p\n", (void *)initial_cr0, (void *)initial_cr4);
+    kPrintf("Initial Processor State - CR0: %p, CR4: %p\n", (void *)initial_cr0, (void *)initial_cr4);
 
     uint64_t cr0 = initial_cr0;
     cr0 &= ~(1 << 2);

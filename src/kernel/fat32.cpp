@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "console.h"
 
 extern "C" {
     #include "ide.h"
@@ -82,7 +83,7 @@ void FAT32FileSystem::init() {
     if (strncmp((char*)&boot_sector[54], "FAT", 3) == 0 || 
         strncmp((char*)&boot_sector[82], "FAT", 3) == 0) {
         partition_lba_start = 0;
-        printf("FAT: Superfloppy (no partition) detected.\n");
+        kPrintf("FAT: Superfloppy (no partition) detected.\n");
     } 
     // 2. MBR 파티션 테이블 확인
     else {
@@ -91,7 +92,7 @@ void FAT32FileSystem::init() {
             uint8_t type = mbr->partitions[0].os_type;
             if (type == 0x01 || type == 0x04 || type == 0x06 || type == 0x0E || type == 0x0B || type == 0x0C) {
                 partition_lba_start = mbr->partitions[0].starting_lba;
-                printf("FAT: Partition found at LBA %d (Type: 0x%02x)\n", 
+                kPrintf("FAT: Partition found at LBA %d (Type: 0x%02x)\n", 
                        partition_lba_start, type);
                 IDE_ReadSectors(partition_lba_start, 1, boot_sector);
             }
@@ -107,13 +108,13 @@ void FAT32FileSystem::init() {
                     strncmp((char*)&boot_sector[54], "FAT", 3) == 0);
 
     if (!is_fat32 && !is_fat16) {
-        printf("FAT: Unknown file system type. Signature at 54: '%.8s', at 82: '%.8s'\n", 
+        kPrintf("FAT: Unknown file system type. Signature at 54: '%.8s', at 82: '%.8s'\n", 
                &boot_sector[54], &boot_sector[82]);
         return;
     }
     
     if (is_fat16) {
-        printf("FAT: FAT16 detected. Note: This driver is optimized for FAT32.\n");
+        kPrintf("FAT: FAT16 detected. Note: This driver is optimized for FAT32.\n");
         if (bpb.sectors_per_fat_32 == 0) {
             bpb.sectors_per_fat_32 = bpb.sectors_per_fat_16;
         }
@@ -126,12 +127,12 @@ void FAT32FileSystem::init() {
     
     // 데이터 검증: sectors_per_cluster가 0이거나 너무 크면 위험함
     if (sectors_per_cluster == 0 || (sectors_per_cluster & (sectors_per_cluster - 1)) != 0) {
-        printf("FAT: Invalid sectors_per_cluster (%d). Aborting mount.\n", sectors_per_cluster);
+        kPrintf("FAT: Invalid sectors_per_cluster (%d). Aborting mount.\n", sectors_per_cluster);
         return;
     }
     
-    printf("FAT32: Bytes/Sector: %d, Sectors/Cluster: %d\n", bpb.bytes_per_sector, sectors_per_cluster);
-    printf("FAT32: Root Cluster: %d, First Data Sector: %d\n", bpb.root_cluster, first_data_sector);
+    kPrintf("FAT32: Bytes/Sector: %d, Sectors/Cluster: %d\n", bpb.bytes_per_sector, sectors_per_cluster);
+    kPrintf("FAT32: Root Cluster: %d, First Data Sector: %d\n", bpb.root_cluster, first_data_sector);
     
     // 루트 VFS 노드 생성 (C++ new 대신 기존 c와 매칭을 위해 malloc 사용)
     vfs_root = (VFS_Node*)malloc(sizeof(VFS_Node));
@@ -145,7 +146,7 @@ void FAT32FileSystem::init() {
     vfs_root->readdir = FAT32_ReadDirBridge;
     vfs_root->read = NULL;
     
-    printf("FAT32: Mounted successfully.\n");
+    kPrintf("FAT32: Mounted successfully.\n");
 }
 
 VFS_Node* FAT32FileSystem::readDir(VFS_Node* node, uint32_t index) {

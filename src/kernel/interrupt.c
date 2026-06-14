@@ -36,7 +36,7 @@ uint64_t ExceptionHandler(Context *regs)
         return (uint64_t)regs;
     }
     
-    kPrintf("\n[CPU EXCEPTION OCCURRED]\n");
+    kPrintf("\n[CPU EXCEPTION OCCURRED] %d\n", (int)regs->interrupt_number);
     static const char* exception_names[] = {
         "#DE Divide Error", "#DB Debug", "NMI Interrupt", "#BP Breakpoint",
         "#OF Overflow", "#BR BOUND Range Exceeded", "#UD Invalid Opcode", "#NM Device Not Available",
@@ -50,19 +50,19 @@ uint64_t ExceptionHandler(Context *regs)
 
     if (regs->interrupt_number < 32)
     {
-        printf("Type: %s\n", exception_names[regs->interrupt_number]);
+        kPrintf("Type: %s\n", exception_names[regs->interrupt_number]);
     }
 
-    printf("Exception No: %d, Error Code: 0x%x\n", (int)regs->interrupt_number, (int)regs->error_code);
-    printf("Faulting RIP: %p, RSP: %p\n", (void*)regs->rip, (void*)regs->rsp);
+    kPrintf("Exception No: %d, Error Code: 0x%x\n", (int)regs->interrupt_number, (int)regs->error_code);
+    kPrintf("Faulting RIP: %p, RSP: %p\n", (void*)regs->rip, (void*)regs->rsp);
 
     if (regs->interrupt_number == 14)
     {
         uint64_t cr2;
         __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
-        printf("Faulting Address (CR2): %p\n", (void*)cr2);
+        kPrintf("Faulting Address (CR2): %p\n", (void*)cr2);
         
-        printf("Cause: %s, %s, %s, %s, %s\n",
+        kPrintf("Cause: %s, %s, %s, %s, %s\n",
             (regs->error_code & 1) ? "Page Present" : "Page Not Present",
             (regs->error_code & 2) ? "Write Access" : "Read Access",
             (regs->error_code & 4) ? "User Mode" : "Supervisor Mode",
@@ -74,7 +74,7 @@ uint64_t ExceptionHandler(Context *regs)
     {
         if (regs->error_code != 0)
         {
-            printf("Segment Selector Index: %d, Table: %s, Location: %s\n",
+            kPrintf("Segment Selector Index: %d, Table: %s, Location: %s\n",
                 (int)(regs->error_code >> 3) & 0x1FFF,
                 (regs->error_code & 2) ? "IDT" : ((regs->error_code & 4) ? "LDT" : "GDT"),
                 (regs->error_code & 1) ? "External" : "Internal"
@@ -82,7 +82,7 @@ uint64_t ExceptionHandler(Context *regs)
         }
         else
         {
-            printf("Cause: Non-selector related violation (e.g., privilege, canonical address)\n");
+            kPrintf("Cause: Non-selector related violation (e.g., privilege, canonical address)\n");
         }
     }
 

@@ -30,11 +30,11 @@ void IDE_Init() {
     
     // 드라이브가 존재하지 않으면 0xFF가 반환됨
     if (status == 0xFF) {
-        printf("IDE: No drive detected on Primary Master.\n");
+        kPrintf("IDE: No drive detected on Primary Master.\n");
         return;
     }
     
-    printf("IDE: Primary Master Drive detected (Status: 0x%02x).\n", status);
+    kPrintf("IDE: Primary Master Drive detected (Status: 0x%02x).\n", status);
 }
 
 /**

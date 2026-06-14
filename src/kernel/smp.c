@@ -51,7 +51,7 @@ static void smp_udelay(uint32_t us)
  */
 void ap_entry(void)
 {
-    /* 0. FPU/SSE 활성화 (컴파일러가 printf 등에서 SSE 명령어를 사용하므로 필수)
+    /* 0. FPU/SSE 활성화 (컴파일러가 kPrintf 등에서 SSE 명령어를 사용하므로 필수)
      *    함수 초입부에서 SSE 명령어가 실행되기 전에 가장 먼저 활성화해야 #UD 예외를 방지할 수 있습니다. */
     uint64_t cr0 = ReadCR0();
     cr0 &= ~(1 << 2);  /* CR0.EM 해제 (x87 에뮬레이션 비활성화) */
@@ -142,7 +142,7 @@ static void smp_copy_trampoline(void)
 {
     uint32_t trampoline_size = (uint32_t)(ap_trampoline_bin_end - ap_trampoline_bin_start);
     memcpy((void*)(uint64_t)AP_TRAMPOLINE_PHYS, ap_trampoline_bin_start, trampoline_size);
-    printf("SMP: Trampoline copied to 0x%x (%u bytes).\n", AP_TRAMPOLINE_PHYS, trampoline_size);
+    kPrintf("SMP: Trampoline copied to 0x%x (%u bytes).\n", AP_TRAMPOLINE_PHYS, trampoline_size);
 }
 
 /* 지정된 AP 코어를 깨우고 초기화 대기 */
@@ -152,7 +152,7 @@ static int smp_boot_ap(int cpu_idx, uint8_t lapic_id, uint64_t pml4_phys)
     void *stack = PMM_AllocPage();
     if (!stack)
     {
-        printf("SMP: Failed to allocate stack for AP #%d (LAPIC ID=%u). Skipping.\n", cpu_idx, lapic_id);
+        kPrintf("SMP: Failed to allocate stack for AP #%d (LAPIC ID=%u). Skipping.\n", cpu_idx, lapic_id);
         return 0;
     }
     uint64_t stack_top = (uint64_t)stack + PAGE_SIZE;
@@ -170,7 +170,7 @@ static int smp_boot_ap(int cpu_idx, uint8_t lapic_id, uint64_t pml4_phys)
     boot_data->entry_point = (uint64_t)ap_entry;
     boot_data->booted_flag = 0;
 
-    printf("SMP: Starting AP #%d (LAPIC ID=%u)...\n", cpu_idx, lapic_id);
+    kPrintf("SMP: Starting AP #%d (LAPIC ID=%u)...\n", cpu_idx, lapic_id);
 
     /* 4. INIT IPI 전송 */
     APIC_SendIPI(lapic_id, 0, APIC_IPI_INIT);
@@ -193,12 +193,12 @@ static int smp_boot_ap(int cpu_idx, uint8_t lapic_id, uint64_t pml4_phys)
 
     if (boot_data->booted_flag)
     {
-        printf("SMP: AP #%d (LAPIC ID=%u) trampoline done.\n", cpu_idx, lapic_id);
+        kPrintf("SMP: AP #%d (LAPIC ID=%u) trampoline done.\n", cpu_idx, lapic_id);
         return 1;
     }
     else
     {
-        printf("SMP: AP #%d (LAPIC ID=%u) timed out — no response.\n", cpu_idx, lapic_id);
+        kPrintf("SMP: AP #%d (LAPIC ID=%u) timed out — no response.\n", cpu_idx, lapic_id);
         return 0;
     }
 }
@@ -206,17 +206,17 @@ static int smp_boot_ap(int cpu_idx, uint8_t lapic_id, uint64_t pml4_phys)
 /* 전체 SMP 초기화 완료 상태를 요약하여 출력 */
 static void smp_print_status(int detected_cpus)
 {
-    printf("\n=== SMP Initialization Complete ===\n");
-    printf("SMP: Online CPUs: %d / %d\n", cpu_count_online, detected_cpus);
+    kPrintf("\n=== SMP Initialization Complete ===\n");
+    kPrintf("SMP: Online CPUs: %d / %d\n", cpu_count_online, detected_cpus);
     for (int i = 0; i < SMP_MAX_CPUS; i++)
     {
         if (cpu_info[i].lapic_id == 0 && i > 0)
             break;
-        printf("  CPU #%d: LAPIC ID=%u, %s\n",
+        kPrintf("  CPU #%d: LAPIC ID=%u, %s\n",
                i, cpu_info[i].lapic_id,
                cpu_info[i].online ? "Online" : "Offline");
     }
-    printf("===================================\n\n");
+    kPrintf("===================================\n\n");
 }
 
 /* ===== SMP 초기화 ===== */
@@ -235,17 +235,17 @@ void SMP_Init(void)
 
     if (!acpi)
     {
-        printf("SMP: ACPI info not found. Skipping AP boot.\n");
+        kPrintf("SMP: ACPI info not found. Skipping AP boot.\n");
         return;
     }
 
-    printf("\n=== SMP Initialization Start ===\n");
-    printf("SMP: %d CPU(s) detected from ACPI MADT.\n", acpi->cpu_count);
-    printf("SMP: BSP LAPIC ID = %u\n", bsp_lapic_id);
+    kPrintf("\n=== SMP Initialization Start ===\n");
+    kPrintf("SMP: %d CPU(s) detected from ACPI MADT.\n", acpi->cpu_count);
+    kPrintf("SMP: BSP LAPIC ID = %u\n", bsp_lapic_id);
 
     if (acpi->cpu_count <= 1)
     {
-        printf("SMP: Single-CPU system. No APs to start.\n");
+        kPrintf("SMP: Single-CPU system. No APs to start.\n");
         return;
     }
 
@@ -273,7 +273,7 @@ void SMP_Init(void)
 
         if (cpu_idx >= SMP_MAX_CPUS)
         {
-            printf("SMP: Max CPU count (%d) reached. Skipping remaining APs.\n", SMP_MAX_CPUS);
+            kPrintf("SMP: Max CPU count (%d) reached. Skipping remaining APs.\n", SMP_MAX_CPUS);
             break;
         }
 

@@ -17,5 +17,5 @@ void PIT_Init(uint32_t frequency) {
     /* 4. MSB (상위 8비트) 전송 */
     outb(PIT_CHANNEL0_PORT, (uint8_t)((divisor >> 8) & 0xFF));
 
-    printf("PIT Initialized: %u Hz (Divisor: %u)\n", frequency, divisor);
+    kPrintf("PIT Initialized: %u Hz (Divisor: %u)\n", frequency, divisor);
 }

@@ -54,11 +54,11 @@ void EnableGlobalLocalAPIC()
     {
         apic_base_msr |= IA32_APIC_BASE_ENABLE;
         WriteMSR(IA32_APIC_BASE_MSR, apic_base_msr);
-        printf("APIC: Global Enable bit set in MSR 0x1B.\n");
+        kPrintf("APIC: Global Enable bit set in MSR 0x1B.\n");
     }
     else
     {
-        printf("APIC: Global Enable bit already set in MSR 0x1B.\n");
+        kPrintf("APIC: Global Enable bit already set in MSR 0x1B.\n");
 	}
 }
 
@@ -87,7 +87,7 @@ void APIC_Init(void)
     uint64_t apic_base_msr = ReadMSR(IA32_APIC_BASE_MSR);
     uint64_t apic_phys_base = apic_base_msr & 0xFFFFF000ULL;
 
-    printf("APIC Base MSR: %p (Phys Base: %p)\n", (void *)apic_base_msr, (void *)apic_phys_base);
+    kPrintf("APIC Base MSR: %p (Phys Base: %p)\n", (void *)apic_base_msr, (void *)apic_phys_base);
 
     /* Global Enable 비트가 꺼져 있으면 활성화 */
     EnableGlobalLocalAPIC();
@@ -112,7 +112,7 @@ void APIC_Init(void)
     /* 초기화 결과 출력 */
     uint32_t apic_id = APIC_Read(APIC_ID_REG) >> 24;
     uint32_t apic_ver = APIC_Read(APIC_VERSION_REG) & 0xFF;
-    printf("APIC Initialized: ID=%u, Version=0x%x\n", apic_id, apic_ver);
+    kPrintf("APIC Initialized: ID=%u, Version=0x%x\n", apic_id, apic_ver);
 
     /* I/O APIC 감지 및 상태 확인 */
     VMM_MapPage(
@@ -133,14 +133,14 @@ void APIC_Init(void)
 
     if (ioapic_ver == 0xFFFFFFFF || ioapic_ver == 0x00000000)
     {
-        printf("I/O APIC: NOT Active or Not Found (Read: 0x%08X)\n", ioapic_ver);
+        kPrintf("I/O APIC: NOT Active or Not Found (Read: 0x%08X)\n", ioapic_ver);
     }
     else
     {
         uint8_t io_version = ioapic_ver & 0xFF;
         uint8_t io_max_redir = (ioapic_ver >> 16) & 0xFF;
         uint8_t io_id = (ioapic_id >> 24) & 0x0F;
-        printf("I/O APIC: Active (ID=%u, Version=0x%02X, Max Redirection Entries=%u)\n",
+        kPrintf("I/O APIC: Active (ID=%u, Version=0x%02X, Max Redirection Entries=%u)\n",
                io_id, io_version, io_max_redir + 1);
     }
 }
@@ -192,7 +192,7 @@ void APIC_Timer_Init(uint32_t frequency_hz)
          * PIT Channel 2는 공유 자원이므로 AP가 동시에 접근하면 오동작합니다.
          */
         ticks_per_sec = apic_calibrated_ticks_per_sec;
-        printf("APIC Timer (AP, LAPIC=%u): Reusing calibrated %u ticks/sec.\n", APIC_Read(APIC_ID_REG) >> 24, ticks_per_sec);
+        kPrintf("APIC Timer (AP, LAPIC=%u): Reusing calibrated %u ticks/sec.\n", APIC_Read(APIC_ID_REG) >> 24, ticks_per_sec);
     }
 	else
 	{
@@ -222,7 +222,7 @@ void APIC_Timer_Init(uint32_t frequency_hz)
 		ticks_per_sec = elapsed * PIT_CALIBRATION_FREQ;
 		apic_calibrated_ticks_per_sec = ticks_per_sec; /* AP를 위해 저장 */
 
-		printf("APIC Timer Calibrated: %u ticks in 10ms, Ticks/sec = %u\n", elapsed, ticks_per_sec);
+		kPrintf("APIC Timer Calibrated: %u ticks in 10ms, Ticks/sec = %u\n", elapsed, ticks_per_sec);
 	} /* end BSP calibration block */
 
     /* 원하는 주파수에 맞는 Initial Count 계산 */
@@ -238,7 +238,7 @@ void APIC_Timer_Init(uint32_t frequency_hz)
     /* Initial Count 설정 → 타이머 시작 */
     APIC_Write(APIC_TIMER_INIT_COUNT, init_count);
 
-    printf("APIC Timer Started: %u Hz (Initial Count: %u)\n", frequency_hz, init_count);
+    kPrintf("APIC Timer Started: %u Hz (Initial Count: %u)\n", frequency_hz, init_count);
 }
 
 /*
@@ -339,11 +339,11 @@ void IOAPIC_Init(void)
     const ACPIInfo *acpi = ACPI_GetInfo();
     if (!acpi)
     {
-        printf("IOAPIC: Failed to get ACPI Info. Cannot configure IO APIC.\n");
+        kPrintf("IOAPIC: Failed to get ACPI Info. Cannot configure IO APIC.\n");
         return;
     }
 
-    printf("IOAPIC: Configuring I/O APIC Redirection Table ( Symmmetric I/O Mode Activated )...\n");
+    kPrintf("IOAPIC: Configuring I/O APIC Redirection Table ( Symmmetric I/O Mode Activated )...\n");
 
     /* 
      * 기본적으로 ISA IRQ 0~15를 I/O APIC 핀 0~15에 1:1로 매핑.
@@ -368,7 +368,7 @@ void IOAPIC_Init(void)
         {
             // Vector = 0x20 + 원래 IRQ 번호 (기존 IDT 핸들러 구조 유지)
             // GSI가 곧 I/O APIC의 핀 번호
-            printf("IOAPIC: ISO Overriding ISA IRQ %u -> GSI %u, Flags=0x%04x\n", iso.irq_source, iso.gsi, iso.flags);
+            kPrintf("IOAPIC: ISO Overriding ISA IRQ %u -> GSI %u, Flags=0x%04x\n", iso.irq_source, iso.gsi, iso.flags);
             
             // 타이머(IRQ 0)는 사용하지 않을 예정(Masked)이나 ISO 엔트리대로 위치만 변경해둡니다.
             // 키보드(IRQ 1)나 마우스(IRQ 12) 등은 적절한 ISO 핀에 덮어써지며, 
@@ -410,6 +410,6 @@ void IOAPIC_Init(void)
     }
     IOAPIC_SetRedirectionEntry(mouse_pin, 0x20 + 12, 0, mouse_flags, false); // Mask 해제 (Active)
 
-    printf("IOAPIC: Keyboard (IRQ 1 -> GSI %u), Mouse (IRQ 12 -> GSI %u) Activated via I/O APIC.\n", kbd_pin, mouse_pin);
+    kPrintf("IOAPIC: Keyboard (IRQ 1 -> GSI %u), Mouse (IRQ 12 -> GSI %u) Activated via I/O APIC.\n", kbd_pin, mouse_pin);
 }
 

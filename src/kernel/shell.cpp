@@ -49,12 +49,12 @@ public:
 
     void printHelp()
     {
-        printf("Available commands:\n");
+        kPrintf("Available commands:\n");
         for (int i = 0; i < commandCount; i++)
         {
             if (commands[i])
             {
-                printf("  %-6s - %s\n", commands[i]->getName(), commands[i]->getDescription());
+                kPrintf("  %-6s - %s\n", commands[i]->getName(), commands[i]->getDescription());
             }
         }
     }
@@ -107,19 +107,19 @@ public:
             }
         }
 
-        printf("Unknown command: '%s'\n", cmdName);
+        kPrintf("Unknown command: '%s'\n", cmdName);
     }
 
     void run()
     {
         char input[MAX_COMMAND_LEN];
 
-        printf("\n--- ToyOS Interactive Shell (C++) ---\n");
-        printf("Type 'help' for a list of commands.\n\n");
+        kPrintf("\n--- ToyOS Interactive Shell (C++) ---\n");
+        kPrintf("Type 'help' for a list of commands.\n\n");
 
         while (1)
         {
-            printf("ToyOS> ");
+            kPrintf("ToyOS> ");
 
             if (fgets(input, MAX_COMMAND_LEN, stdin) == NULL)
             {
@@ -169,10 +169,10 @@ public:
         uint64_t free = PMM_GetFreeMemory();
         uint64_t used = total - free;
 
-        printf("Physical Memory Status:\n");
-        printf("  Total: %d MB\n", (int)(total / (1024 * 1024)));
-        printf("  Used : %d MB\n", (int)(used / (1024 * 1024)));
-        printf("  Free : %d MB\n", (int)(free / (1024 * 1024)));
+        kPrintf("Physical Memory Status:\n");
+        kPrintf("  Total: %d MB\n", (int)(total / (1024 * 1024)));
+        kPrintf("  Used : %d MB\n", (int)(used / (1024 * 1024)));
+        kPrintf("  Free : %d MB\n", (int)(free / (1024 * 1024)));
     }
 };
 
@@ -185,12 +185,12 @@ public:
     {
         if (vfs_root == NULL)
         {
-            printf("Error: VFS root not found.\n");
+            kPrintf("Error: VFS root not found.\n");
             return;
         }
 
-        printf("Index  Type   Size       Name\n");
-        printf("------------------------------------\n");
+        kPrintf("Index  Type   Size       Name\n");
+        kPrintf("------------------------------------\n");
 
         int i = 0;
         while (1)
@@ -199,7 +199,7 @@ public:
             if (node == NULL)
                 break;
 
-            printf("[%2d]   %s   %10d  %s\n",
+            kPrintf("[%2d]   %s   %10d  %s\n",
                    i,
                    (node->flags & VFS_DIRECTORY) ? "<DIR>" : "FILE ",
                    node->size,
@@ -220,7 +220,7 @@ public:
     {
         if (args == nullptr || strlen(args) == 0)
         {
-            printf("Usage: cat <filename>\n");
+            kPrintf("Usage: cat <filename>\n");
             return;
         }
 
@@ -245,13 +245,13 @@ public:
 
         if (target == NULL)
         {
-            printf("File not found: %s\n", args);
+            kPrintf("File not found: %s\n", args);
             return;
         }
 
         if (target->flags & VFS_DIRECTORY)
         {
-            printf("Error: '%s' is a directory.\n", args);
+            kPrintf("Error: '%s' is a directory.\n", args);
             ::free(target);
             return;
         }
@@ -259,7 +259,7 @@ public:
         uint8_t *buffer = (uint8_t *)::malloc(target->size + 1);
         if (!buffer)
         {
-            printf("Error: Failed to allocate memory for file content.\n");
+            kPrintf("Error: Failed to allocate memory for file content.\n");
             ::free(target);
             return;
         }
@@ -267,7 +267,7 @@ public:
         uint32_t read_bytes = VFS_Read(target, 0, target->size, buffer);
         buffer[read_bytes] = '\0';
 
-        printf("%s\n", (char *)buffer);
+        kPrintf("%s\n", (char *)buffer);
 
         ::free(buffer);
         ::free(target);
@@ -281,7 +281,7 @@ public:
     const char *getDescription() const override { return "Restart the system"; }
     void execute(const char *args) override
     {
-        printf("Rebooting is not implemented yet.\n");
+        kPrintf("Rebooting is not implemented yet.\n");
     }
 };
 
@@ -294,7 +294,7 @@ public:
     {
         if (args == nullptr || strlen(args) == 0)
         {
-            printf("Usage: run <filename> [arg]\n");
+            kPrintf("Usage: run <filename> [arg]\n");
             return;
         }
 
@@ -316,15 +316,15 @@ public:
         Task *t = LoadELFProcess(filename, arg_val);
         if (t)
         {
-            printf("Started process '%s' with PID %d\n", filename, (int)t->id);
+            kPrintf("Started process '%s' with PID %d\n", filename, (int)t->id);
             // 유저 앱이 종료될 때까지 쉘 대기
             extern void WaitTask(uint64_t id);
             WaitTask(t->id);
-            printf("Process '%s' (PID %d) finished.\n", filename, (int)t->id);
+            kPrintf("Process '%s' (PID %d) finished.\n", filename, (int)t->id);
         }
         else
         {
-            printf("Failed to start process '%s'\n", filename);
+            kPrintf("Failed to start process '%s'\n", filename);
         }
     }
 };

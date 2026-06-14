@@ -124,12 +124,12 @@ static int Mouse_EnableIntelliMouse(void)
 
     if (mouse_id == 0x03)
     {
-        printf("Mouse: IntelliMouse wheel mode enabled (ID=0x%02x)\n", mouse_id);
+        kPrintf("Mouse: IntelliMouse wheel mode enabled (ID=0x%02x)\n", mouse_id);
         return 1;
     }
     else
     {
-        printf("Mouse: Standard mode (ID=0x%02x), no wheel support\n", mouse_id);
+        kPrintf("Mouse: Standard mode (ID=0x%02x), no wheel support\n", mouse_id);
         return 0;
     }
 }

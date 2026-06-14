@@ -57,7 +57,7 @@ static MPFloatingPointer* MP_SearchRange(uint64_t start, uint32_t len)
             if (MP_Checksum(fps, 16) != 0)
                 continue;
 
-            printf("MP: Found MP Floating Pointer at %p (Rev 1.%d)\n",
+            kPrintf("MP: Found MP Floating Pointer at %p (Rev 1.%d)\n",
                    (void *)addr, fps->spec_rev);
             return fps;
         }
@@ -89,7 +89,7 @@ static MPFloatingPointer* MP_FindFloatingPointer(void)
     if (ebda_seg != 0)
     {
         uint64_t ebda_addr = (uint64_t)ebda_seg << 4;
-        printf("MP: Searching EBDA at %p...\n", (void *)ebda_addr);
+        kPrintf("MP: Searching EBDA at %p...\n", (void *)ebda_addr);
         fps = MP_SearchRange(ebda_addr, 1024);
         if (fps)
             return fps;
@@ -99,7 +99,7 @@ static MPFloatingPointer* MP_FindFloatingPointer(void)
      * 2. 시스템 기본 메모리 마지막 1KB (0x9FC00 ~ 0x9FFFF)
      *    일부 시스템에서는 EBDA 포인터가 없거나 잘못된 경우를 대비합니다.
      */
-    printf("MP: Searching last 1KB of base memory (0x9FC00)...\n");
+    kPrintf("MP: Searching last 1KB of base memory (0x9FC00)...\n");
     fps = MP_SearchRange(0x9FC00, 1024);
     if (fps)
         return fps;
@@ -108,7 +108,7 @@ static MPFloatingPointer* MP_FindFloatingPointer(void)
      * 3. BIOS ROM 영역 (0xF0000 ~ 0xFFFFF, 64KB)
      *    BIOS 코드/데이터 영역에서 탐색합니다.
      */
-    printf("MP: Searching BIOS ROM area (0xF0000)...\n");
+    kPrintf("MP: Searching BIOS ROM area (0xF0000)...\n");
     fps = MP_SearchRange(0xF0000, 0x10000);
     if (fps)
         return fps;
@@ -127,14 +127,14 @@ static int MP_ParseConfigTable(MPConfigTable *table)
     /* 시그니처 검증: "PCMP" */
     if (table->signature != MP_CFG_SIGNATURE)
     {
-        printf("MP: Invalid Config Table signature: 0x%x\n", table->signature);
+        kPrintf("MP: Invalid Config Table signature: 0x%x\n", table->signature);
         return -1;
     }
 
     /* 체크섬 검증 */
     if (MP_Checksum(table, table->base_table_length) != 0)
     {
-        printf("MP: Config Table checksum failed.\n");
+        kPrintf("MP: Config Table checksum failed.\n");
         return -1;
     }
 
@@ -144,10 +144,10 @@ static int MP_ParseConfigTable(MPConfigTable *table)
     memcpy(oem_id, table->oem_id, 8);
     memcpy(product_id, table->product_id, 12);
 
-    printf("MP Config Table:\n");
-    printf("  OEM: '%s', Product: '%s'\n", oem_id, product_id);
-    printf("  Spec Rev: 1.%d, Entry Count: %u\n", table->spec_rev, table->entry_count);
-    printf("  Local APIC Addr: 0x%08x\n", table->lapic_addr);
+    kPrintf("MP Config Table:\n");
+    kPrintf("  OEM: '%s', Product: '%s'\n", oem_id, product_id);
+    kPrintf("  Spec Rev: 1.%d, Entry Count: %u\n", table->spec_rev, table->entry_count);
+    kPrintf("  Local APIC Addr: 0x%08x\n", table->lapic_addr);
 
     /* Local APIC 주소 저장 */
     mp_info.lapic_addr = table->lapic_addr;
@@ -174,7 +174,7 @@ static int MP_ParseConfigTable(MPConfigTable *table)
             const char *bsp_str = (proc->cpu_flags & MP_CPU_FLAG_BSP) ? "BSP" : "AP";
             const char *en_str  = (proc->cpu_flags & MP_CPU_FLAG_ENABLED) ? "Enabled" : "Disabled";
 
-            printf("  CPU #%d: LAPIC ID=%u, %s, %s\n",
+            kPrintf("  CPU #%d: LAPIC ID=%u, %s, %s\n",
                    mp_info.cpu_count - 1, proc->lapic_id, bsp_str, en_str);
 
             /* BSP의 LAPIC ID 기록 */
@@ -192,7 +192,7 @@ static int MP_ParseConfigTable(MPConfigTable *table)
             MPBusEntry *bus = (MPBusEntry *)entry_ptr;
             char bus_type[7] = {0};
             memcpy(bus_type, bus->bus_type, 6);
-            printf("  Bus #%d: Type='%s'\n", bus->bus_id, bus_type);
+            kPrintf("  Bus #%d: Type='%s'\n", bus->bus_id, bus_type);
             entry_ptr += 8; /* Bus Entry는 8바이트 */
             break;
         }
@@ -207,7 +207,7 @@ static int MP_ParseConfigTable(MPConfigTable *table)
             }
 
             const char *en_str = (ioapic->ioapic_flags & 0x01) ? "Enabled" : "Disabled";
-            printf("  I/O APIC #%d: ID=%u, Ver=%u, Addr=0x%08x, %s\n",
+            kPrintf("  I/O APIC #%d: ID=%u, Ver=%u, Addr=0x%08x, %s\n",
                    mp_info.ioapic_count - 1, ioapic->ioapic_id,
                    ioapic->ioapic_version, ioapic->ioapic_addr, en_str);
 
@@ -234,7 +234,7 @@ static int MP_ParseConfigTable(MPConfigTable *table)
         }
 
         default:
-            printf("MP: Unknown entry type %d at offset 0x%x\n",
+            kPrintf("MP: Unknown entry type %d at offset 0x%x\n",
                    entry_type, (uint32_t)(entry_ptr - (uint8_t *)table));
             return -1;
         }
@@ -254,27 +254,27 @@ int MP_Init(void)
     /* 결과 구조체 초기화 */
     memset(&mp_info, 0, sizeof(MPInfo));
 
-    printf("=== MP Configuration Table Detection ===\n");
+    kPrintf("=== MP Configuration Table Detection ===\n");
 
     /* 1. MP Floating Pointer Structure 찾기 */
     MPFloatingPointer *fps = MP_FindFloatingPointer();
     if (!fps)
     {
-        printf("MP: MP Floating Pointer Structure not found.\n");
-        printf("MP: This system may not support the MP Specification.\n");
-        printf("MP: Consider using ACPI MADT instead.\n");
+        kPrintf("MP: MP Floating Pointer Structure not found.\n");
+        kPrintf("MP: This system may not support the MP Specification.\n");
+        kPrintf("MP: Consider using ACPI MADT instead.\n");
         return -1;
     }
 
-    printf("MP: Spec Revision: 1.%d\n", fps->spec_rev);
-    printf("MP: Feature Byte 1: 0x%02x\n", fps->mp_feature1);
-    printf("MP: Feature Byte 2: 0x%02x\n", fps->mp_feature2);
+    kPrintf("MP: Spec Revision: 1.%d\n", fps->spec_rev);
+    kPrintf("MP: Feature Byte 1: 0x%02x\n", fps->mp_feature1);
+    kPrintf("MP: Feature Byte 2: 0x%02x\n", fps->mp_feature2);
 
     /* IMCR 존재 여부 확인 (Feature Byte 2의 bit 7) */
     mp_info.imcr_present = (fps->mp_feature2 & 0x80) ? 1 : 0;
     if (mp_info.imcr_present)
     {
-        printf("MP: IMCR (Interrupt Mode Configuration Register) present.\n");
+        kPrintf("MP: IMCR (Interrupt Mode Configuration Register) present.\n");
     }
 
     /* 2. MP Configuration Table 파싱 */
@@ -285,8 +285,8 @@ int MP_Init(void)
          * 이 경우 MP Config Table이 없으며 미리 정의된 구성을 사용합니다.
          * (현재는 간단히 듀얼 프로세서로 가정)
          */
-        printf("MP: Using Default Configuration Type %d\n", fps->mp_feature1);
-        printf("MP: Default Configuration parsing not fully implemented.\n");
+        kPrintf("MP: Using Default Configuration Type %d\n", fps->mp_feature1);
+        kPrintf("MP: Default Configuration parsing not fully implemented.\n");
 
         /* 최소한 BSP 하나는 등록 */
         mp_info.cpu_count = 1;
@@ -301,28 +301,28 @@ int MP_Init(void)
         /* mp_feature1 == 0이면 mp_config_ptr이 유효한 Config Table을 가리킵니다 */
         if (fps->mp_config_ptr == 0)
         {
-            printf("MP: Config Table pointer is NULL.\n");
+            kPrintf("MP: Config Table pointer is NULL.\n");
             return -1;
         }
 
         MPConfigTable *table = (MPConfigTable *)(uint64_t)fps->mp_config_ptr;
-        printf("MP: Config Table at %p\n", (void *)table);
+        kPrintf("MP: Config Table at %p\n", (void *)table);
 
         if (MP_ParseConfigTable(table) != 0)
         {
-            printf("MP: Failed to parse Config Table.\n");
+            kPrintf("MP: Failed to parse Config Table.\n");
             return -1;
         }
     }
 
     /* 결과 요약 출력 */
-    printf("\n=== MP Detection Summary ===\n");
-    printf("  Total CPUs:     %d\n", mp_info.cpu_count);
-    printf("  Total I/O APICs:%d\n", mp_info.ioapic_count);
-    printf("  BSP LAPIC ID:   %u\n", mp_info.bsp_lapic_id);
-    printf("  LAPIC Address:  0x%08x\n", mp_info.lapic_addr);
-    printf("  IMCR Present:   %s\n", mp_info.imcr_present ? "Yes" : "No");
-    printf("============================\n");
+    kPrintf("\n=== MP Detection Summary ===\n");
+    kPrintf("  Total CPUs:     %d\n", mp_info.cpu_count);
+    kPrintf("  Total I/O APICs:%d\n", mp_info.ioapic_count);
+    kPrintf("  BSP LAPIC ID:   %u\n", mp_info.bsp_lapic_id);
+    kPrintf("  LAPIC Address:  0x%08x\n", mp_info.lapic_addr);
+    kPrintf("  IMCR Present:   %s\n", mp_info.imcr_present ? "Yes" : "No");
+    kPrintf("============================\n");
 
     mp_initialized = 1;
     return 0;

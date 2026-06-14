@@ -29,7 +29,7 @@ void PrintStringLen(BootInfo *binfo, const char *str, uint32_t len, uint32_t col
 void ClearScreen(BootInfo *binfo, uint32_t color);
 
 /* Printf: 가변 인자 없이 문자열만 출력하는 임시 함수 */
-void kPrintf(const char *str);
+void kPrintf(const char *str, ...);
 
 /* --- 콘솔 스크롤백 기능 --- */
 

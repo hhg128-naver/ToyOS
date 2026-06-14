@@ -75,7 +75,7 @@ void kmain(BootInfo *boot_info)
     Mouse_Init(boot_info);
 
     EnableInterrupts();
-    printf("System Ready with Interactive Windowing System.\n");
+    kPrintf("System Ready with Interactive Windowing System.\n");
 
     /* 배경 레이어 생성 */
     Layer *bg_layer = CreateLayer(boot_info->horizontal_resolution, boot_info->vertical_resolution, 0xFF000001);
@@ -90,7 +90,7 @@ void kmain(BootInfo *boot_info)
     //CreateTask(GUI_Task);
     CreateTask(Shell_Main);
 
-    printf("\nToyOS Graphical Shell is now active.\n");
+    kPrintf("\nToyOS Graphical Shell is now active.\n");
 
     while (1)
     {

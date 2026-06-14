@@ -1,6 +1,7 @@
 #include "console.h"
 #include "font.h"
 #include <string.h>
+#include <stdio.h>
 
 /*
  * ===== 스크롤백 버퍼 설정 =====
@@ -67,9 +68,16 @@ void Console_Init(BootInfo *binfo)
     ClearScreen(binfo, 0x00000033);
 }
 
-void kPrintf(const char *str)
+void kPrintf(const char *str, ...)
 {
-    kPrintString(boot_info_global, str, 0x00FFFFFF);
+	va_list ap;
+	char s[1024];
+
+	va_start(ap, str);
+	vsprintf(s, str, ap);
+	va_end(ap);
+
+    kPrintString(boot_info_global, s, 0x00FFFFFF);
 }
 
 void ClearScreen(BootInfo *binfo, uint32_t color)

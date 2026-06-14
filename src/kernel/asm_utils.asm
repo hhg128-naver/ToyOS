@@ -311,25 +311,29 @@ SyscallEntry:
     mov rcx, 0xFEE00020
     mov ecx, [rcx]
     shr ecx, 24             ; ecx = CPU ID (0 ~ 15)
+    cmp ecx, 16             ; SMP_MAX_CPUS 경계 검사
+    jb .apic_id_ok
+    xor ecx, ecx            ; 범위를 초과하면 0으로 세팅
+.apic_id_ok:
 
     ; 3. 현재의 rsp (유저 스택 주소, rcx 백업됨)를 user_rsp_temp_array에 보관
-    mov [rel user_rsp_temp_array + rcx*8], rsp
+    mov [user_rsp_temp_array + rcx*8], rsp
 
     ; 4. 커널 스택으로 전환
-    mov rsp, [rel current_kernel_stack_top_array + rcx*8]
+    mov rsp, [current_kernel_stack_top_array + rcx*8]
 
     ; 5. 시스템 콜 번호(rax)와 유저 RFLAGS(r11)를 커널 스택에 임시 보존
     push rax
     push r11
 
     ; 6. 유저 스택에 백업해 둔 원래 rcx (유저 RIP)를 읽어 rax에 보관
-    mov r11, [rel user_rsp_temp_array + rcx*8]
+    mov r11, [user_rsp_temp_array + rcx*8]
     mov rax, [r11]          ; rax = 원래 유저 RIP
 
     ; 7. 커널 스택에 iretq 복귀 프레임 빌드
     push qword 0x1B         ; User SS (Index 3, RPL 3)
     
-    mov r11, [rel user_rsp_temp_array + rcx*8]
+    mov r11, [user_rsp_temp_array + rcx*8]
     add r11, 8              ; 원래 유저 RSP로 보정
     push r11                ; User RSP
 
