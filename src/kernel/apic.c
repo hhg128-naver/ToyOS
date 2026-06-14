@@ -1,7 +1,15 @@
 #include "apic.h"
 #include "vmm.h"
+#include "acpi.h"
 #include <stdio.h>
 #include <stdbool.h>
+
+#define IOAPIC_BASE_ADDR        0xFEC00000ULL
+#define IOAPIC_REG_SEL          0x00
+#define IOAPIC_REG_WIN          0x10
+#define IOAPIC_ID_INDEX         0x00
+#define IOAPIC_VER_INDEX        0x01
+
 
 /* BSP에서 한 번 측정한 APIC 타이머 틱/초 (이후 AP가 재사용) */
 static volatile uint32_t apic_calibrated_ticks_per_sec = 0;
@@ -107,12 +115,6 @@ void APIC_Init(void)
     printf("APIC Initialized: ID=%u, Version=0x%x\n", apic_id, apic_ver);
 
     /* I/O APIC 감지 및 상태 확인 */
-    #define IOAPIC_BASE_ADDR        0xFEC00000ULL
-    #define IOAPIC_REG_SEL          0x00
-    #define IOAPIC_REG_WIN          0x10
-    #define IOAPIC_ID_INDEX         0x00
-    #define IOAPIC_VER_INDEX        0x01
-
     VMM_MapPage(
         (void*)IOAPIC_BASE_ADDR,
         (void*)IOAPIC_BASE_ADDR,
@@ -287,3 +289,127 @@ void APIC_Init_AP(void)
     /* Task Priority Register: 0 (모든 인터럽트 수용) */
     APIC_Write(APIC_TPR_REG, 0);
 }
+
+void IOAPIC_Write(uint32_t reg, uint32_t value)
+{
+    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_SEL);
+    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_WIN);
+    *ioapic_sel = reg;
+    *ioapic_win = value;
+}
+
+uint32_t IOAPIC_Read(uint32_t reg)
+{
+    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_SEL);
+    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_WIN);
+    *ioapic_sel = reg;
+    return *ioapic_win;
+}
+
+void IOAPIC_SetRedirectionEntry(uint8_t pin, uint8_t vector, uint8_t dest_lapic_id, uint16_t flags, bool mask)
+{
+    uint32_t low_reg = 0x10 + (pin * 2);
+    uint32_t high_reg = 0x11 + (pin * 2);
+
+    uint32_t low_val = vector; // Delivery Mode = Fixed (000), Destination Mode = Physical (0)
+
+    // Trigger Mode & Polarity 설정 (가독성 상수를 이용하여 개선)
+    if ((flags & ISO_FLAGS_POLARITY_MASK) == ISO_FLAGS_POLARITY_ACTIVE_LOW)
+    {
+        low_val |= (1 << 13); // Active Low
+    }
+    if ((flags & ISO_FLAGS_TRIGGER_MASK) == ISO_FLAGS_TRIGGER_LEVEL)
+    {
+        low_val |= (1 << 15); // Level Triggered
+    }
+
+    if (mask)
+    {
+        low_val |= (1 << 16); // Masked
+    }
+
+    uint32_t high_val = (uint32_t)dest_lapic_id << 24;
+
+    IOAPIC_Write(low_reg, low_val);
+    IOAPIC_Write(high_reg, high_val);
+}
+
+void IOAPIC_Init(void)
+{
+    const ACPIInfo *acpi = ACPI_GetInfo();
+    if (!acpi)
+    {
+        printf("IOAPIC: Failed to get ACPI Info. Cannot configure IO APIC.\n");
+        return;
+    }
+
+    printf("IOAPIC: Configuring I/O APIC Redirection Table ( Symmmetric I/O Mode Activated )...\n");
+
+    /* 
+     * 기본적으로 ISA IRQ 0~15를 I/O APIC 핀 0~15에 1:1로 매핑.
+     * 이때 기본 속성은 Edge Triggered, Active High, Masked 상태로 둡니다.
+     * 단, 필요에 따라 마스크를 해제합니다.
+     */
+    for (uint8_t irq = 0; irq < 16; irq++)
+    {
+        // Vector = 0x20 (32) + irq
+        // 기본값: Edge Triggered (0), Active High (0)
+        IOAPIC_SetRedirectionEntry(irq, 0x20 + irq, 0, 0, true);
+    }
+
+    /* 
+     * ACPI MADT의 Interrupt Source Override(ISO) 데이터 적용.
+     * 버스 소스는 ISA(0)를 의미하며, 특정 IRQ가 다른 GSI 핀으로 리라우팅되거나 극성/트리거가 달라진 것을 세팅합니다.
+     */
+    for (int i = 0; i < acpi->iso_count; i++)
+    {
+        MADTIntSrcOverride iso = acpi->isos[i];
+        if (iso.bus_source == 0) // ISA bus
+        {
+            // Vector = 0x20 + 원래 IRQ 번호 (기존 IDT 핸들러 구조 유지)
+            // GSI가 곧 I/O APIC의 핀 번호
+            printf("IOAPIC: ISO Overriding ISA IRQ %u -> GSI %u, Flags=0x%04x\n", iso.irq_source, iso.gsi, iso.flags);
+            
+            // 타이머(IRQ 0)는 사용하지 않을 예정(Masked)이나 ISO 엔트리대로 위치만 변경해둡니다.
+            // 키보드(IRQ 1)나 마우스(IRQ 12) 등은 적절한 ISO 핀에 덮어써지며, 
+            // 나중에 명시적으로 unmask 처리를 수행합니다.
+            bool mask_it = (iso.irq_source == 0) ? true : false;
+            IOAPIC_SetRedirectionEntry(iso.gsi, 0x20 + iso.irq_source, 0, iso.flags, mask_it);
+        }
+    }
+
+    /* 
+     * 1:1 매핑되었거나 ISO로 재정의된 키보드(IRQ 1)와 마우스(IRQ 12)의 마스크를 확실하게 해제해 줍니다.
+     * (만약 ISO에 걸려있지 않더라도 기본 1:1 핀 1번과 12번이 정상 작동하도록 보장)
+     */
+    // 키보드 IRQ 1 매핑 핀 찾기
+    uint8_t kbd_pin = 1;
+    uint16_t kbd_flags = 0;
+    for (int i = 0; i < acpi->iso_count; i++)
+    {
+        if (acpi->isos[i].irq_source == 1 && acpi->isos[i].bus_source == 0)
+        {
+            kbd_pin = acpi->isos[i].gsi;
+            kbd_flags = acpi->isos[i].flags;
+            break;
+        }
+    }
+    IOAPIC_SetRedirectionEntry(kbd_pin, 0x20 + 1, 0, kbd_flags, false); // Mask 해제 (Active)
+
+    // 마우스 IRQ 12 매핑 핀 찾기
+    uint8_t mouse_pin = 12;
+    uint16_t mouse_flags = 0;
+    for (int i = 0; i < acpi->iso_count; i++)
+    {
+        if (acpi->isos[i].irq_source == 12 && acpi->isos[i].bus_source == 0)
+        {
+            mouse_pin = acpi->isos[i].gsi;
+            mouse_flags = acpi->isos[i].flags;
+            break;
+        }
+    }
+    IOAPIC_SetRedirectionEntry(mouse_pin, 0x20 + 12, 0, mouse_flags, false); // Mask 해제 (Active)
+
+    printf("IOAPIC: Keyboard (IRQ 1 -> GSI %u), Mouse (IRQ 12 -> GSI %u) Activated via I/O APIC.\n", kbd_pin, mouse_pin);
+}
+

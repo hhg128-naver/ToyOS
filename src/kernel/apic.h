@@ -2,6 +2,7 @@
 #define APIC_H
 
 #include "kernel.h"
+#include <stdbool.h>
 
 /* ===== Local APIC MMIO 베이스 주소 ===== */
 #define APIC_BASE_ADDR          0xFEE00000ULL
@@ -118,6 +119,11 @@ void APIC_SendIPI(uint8_t dest_lapic_id, uint8_t vector, uint32_t delivery_mode)
  */
 void APIC_Init_AP(void);
 
+void IOAPIC_Write(uint32_t reg, uint32_t value);
+uint32_t IOAPIC_Read(uint32_t reg);
+void IOAPIC_SetRedirectionEntry(uint8_t pin, uint8_t vector, uint8_t dest_lapic_id, uint16_t flags, bool mask);
+void IOAPIC_Init(void);
+
 /* APIC 레지스터 읽기/쓰기 */
 uint32_t APIC_Read(uint32_t offset);
 void APIC_Write(uint32_t offset, uint32_t value);
@@ -125,5 +131,11 @@ void APIC_Write(uint32_t offset, uint32_t value);
 /* 어셈블리(asm_utils.asm)에서 정의된 MSR 함수 */
 extern uint64_t ReadMSR(uint32_t msr);
 extern void WriteMSR(uint32_t msr, uint64_t value);
+
+/* Interrupt Source Override Flags 가독성을 위한 상수 */
+#define ISO_FLAGS_POLARITY_MASK         0x03
+#define ISO_FLAGS_POLARITY_ACTIVE_LOW   0x02  /* 0x02 비트가 세팅되면 Active Low */
+#define ISO_FLAGS_TRIGGER_MASK          0x0C
+#define ISO_FLAGS_TRIGGER_LEVEL         0x08  /* 0x08 비트가 세팅되면 Level Triggered */
 
 #endif

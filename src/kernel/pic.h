@@ -23,5 +23,6 @@
 void PIC_Init();
 void PIC_MaskIRQ(uint8_t irq);
 void PIC_UnmaskIRQ(uint8_t irq);
+void PIC_Disable(void);
 
 #endif

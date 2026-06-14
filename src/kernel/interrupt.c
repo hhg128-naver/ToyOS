@@ -22,11 +22,8 @@ extern uint8_t inb(uint16_t port);
  */
 void SendEOI(uint64_t irq)
 {
-    if (irq >= 40)
-    {
-        outb(PIC2_COMMAND, PIC_EOI);
-    }
-    outb(PIC1_COMMAND, PIC_EOI);
+    /* 8259A PIC를 비활성화하고 I/O APIC 대칭 모드를 사용하므로, Local APIC에 EOI를 보냅니다. */
+    APIC_SendEOI();
 }
 
 /*

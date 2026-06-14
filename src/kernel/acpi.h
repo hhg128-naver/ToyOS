@@ -142,7 +142,7 @@ typedef struct __attribute__((packed))
 {
     MADTEntryHeader header;
     uint8_t  bus_source;        /* 항상 0 (ISA) */
-    uint8_t  irq_source;       /* ISA IRQ 번호 */
+    uint8_t  irq_source;        /* ISA IRQ 번호 */
     uint32_t gsi;               /* 실제 매핑되는 GSI 번호 */
     uint16_t flags;             /* 극성 및 트리거 모드 플래그 */
 } MADTIntSrcOverride;
