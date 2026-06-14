@@ -51,6 +51,20 @@ static void smp_udelay(uint32_t us)
  */
 void ap_entry(void)
 {
+    /* 0. FPU/SSE 활성화 (컴파일러가 printf 등에서 SSE 명령어를 사용하므로 필수)
+     *    함수 초입부에서 SSE 명령어가 실행되기 전에 가장 먼저 활성화해야 #UD 예외를 방지할 수 있습니다. */
+    uint64_t cr0 = ReadCR0();
+    cr0 &= ~(1 << 2);  /* CR0.EM 해제 (x87 에뮬레이션 비활성화) */
+    cr0 |= (1 << 1);   /* CR0.MP 설정 */
+    WriteCR0(cr0);
+
+    uint64_t cr4 = ReadCR4();
+    cr4 |= (1 << 9);   /* CR4.OSFXSR (SSE 명령어 활성화) */
+    cr4 |= (1 << 10);  /* CR4.OSXMMEXCPT (SSE 예외 처리 활성화) */
+    WriteCR4(cr4);
+
+    InitFPU();          /* fninit: FPU 상태 초기화 */
+
     /* 1. 이 AP의 Local APIC 활성화 (SVR, TPR 설정)
      *    MMIO 매핑은 BSP의 APIC_Init()에서 이미 완료됨 */
     APIC_Init_AP();
@@ -72,19 +86,6 @@ void ap_entry(void)
 
     /* 3. BSP의 IDT를 이 AP에 로드 (예외 핸들링 활성화) */
     LoadIDT_AP();
-
-    /* 4. FPU/SSE 활성화 (컴파일러가 printf 등에서 SSE 명령어를 사용하므로 필수) */
-    uint64_t cr0 = ReadCR0();
-    cr0 &= ~(1 << 2);  /* CR0.EM 해제 (x87 에뮬레이션 비활성화) */
-    cr0 |= (1 << 1);   /* CR0.MP 설정 */
-    WriteCR0(cr0);
-
-    uint64_t cr4 = ReadCR4();
-    cr4 |= (1 << 9);   /* CR4.OSFXSR (SSE 명령어 활성화) */
-    cr4 |= (1 << 10);  /* CR4.OSXMMEXCPT (SSE 예외 처리 활성화) */
-    WriteCR4(cr4);
-
-    InitFPU();          /* fninit: FPU 상태 초기화 */
 
     /* 4-1. 시스템 콜 MSR 설정 활성화 (syscall/sysret 사용을 위해 각 CPU 코어마다 필수) */
     InitSyscall();

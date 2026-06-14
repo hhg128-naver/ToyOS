@@ -22,7 +22,7 @@ static int task_count = 0;
  */
 static int per_cpu_task_idx[SMP_MAX_CPUS];
 
-uint64_t current_kernel_stack_top = 0;
+uint64_t current_kernel_stack_top_array[SMP_MAX_CPUS] = {0};
 
 /* 현재 CPU의 LAPIC ID 반환 (클램핑 포함) */
 static inline uint32_t get_cpu_id(void)
@@ -57,7 +57,7 @@ void InitializeTaskSystem() {
     
     uint64_t dummy_rsp;
     __asm__ volatile("mov %%rsp, %0" : "=r"(dummy_rsp));
-    current_kernel_stack_top = dummy_rsp;
+    current_kernel_stack_top_array[bsp_lapic_id] = dummy_rsp;
     
     kPrintf("Task System Initialized.\n");
 }
@@ -375,8 +375,9 @@ uint64_t Schedule(uint64_t current_rsp) {
         LoadPageTable(next_task->pml4);
 
     /* TSS RSP0 갱신 */
-    current_kernel_stack_top = next_task->kernel_stack_top;
-    if (current_kernel_stack_top != 0) 
+    uint64_t kstack_top = next_task->kernel_stack_top;
+    current_kernel_stack_top_array[cpu_id] = kstack_top;
+    if (kstack_top != 0) 
     {
         /* 각 CPU의 인덱스를 구해서 해당하는 TSS의 rsp0 업데이트 */
         uint8_t target_cpu_idx = 0;
@@ -388,7 +389,7 @@ uint64_t Schedule(uint64_t current_rsp) {
                 break;
             }
         }
-        SetTSSStack(target_cpu_idx, current_kernel_stack_top);
+        SetTSSStack(target_cpu_idx, kstack_top);
     }
 
     uint64_t next_rsp = next_task->rsp;

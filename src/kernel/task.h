@@ -32,7 +32,7 @@ typedef struct Task {
     uint64_t heap_end;     // 유저 힙 현재 끝 주소
 } Task;
 
-extern uint64_t current_kernel_stack_top;
+extern uint64_t current_kernel_stack_top_array[16];
 
 void InitializeTaskSystem();
 Task* CreateTask(void (*entryPoint)());

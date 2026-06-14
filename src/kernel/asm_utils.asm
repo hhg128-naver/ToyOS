@@ -1,8 +1,8 @@
 [BITS 64]
 
 section .data
-global user_rsp_temp
-user_rsp_temp: dq 0
+global user_rsp_temp_array
+user_rsp_temp_array: times 16 dq 0
 
 section .text
 global sLoadGDT
@@ -16,7 +16,7 @@ global irq32, irq33, irq44, irq48, irq255  ; IRQ 0 (Timer), IRQ 1 (Keyboard), IR
 global outb, inb, outw, inw, insw
 extern ExceptionHandler
 extern InterruptHandler
-extern current_kernel_stack_top
+extern current_kernel_stack_top_array
 extern SyscallHandler
 
 ; sLoadGDT(struct GDTPtr *gdt_ptr)
@@ -304,19 +304,44 @@ irq_common:
 ; SyscallEntry: syscall 명령어 진입점
 global SyscallEntry
 SyscallEntry:
-    ; 1. 유저 RSP를 잠시 보관하고 커널 스택으로 전환
-    mov [rel user_rsp_temp], rsp
-    mov rsp, [rel current_kernel_stack_top]
+    ; 1. 유저 스택에 rcx (유저 RIP) 백업
+    push rcx
 
-    ; 2. 유저 컨텍스트 보존 (iretq 프레임 구성)
-    push qword 0x1B     ; User Data Segment (Index 3, RPL 3)
-    push qword [rel user_rsp_temp]
-    push r11            ; User RFLAGS (syscall이 r11에 보관함)
-    push qword 0x23     ; User Code Segment (Index 4, RPL 3)
-    push rcx            ; User RIP (syscall이 rcx에 보관함)
+    ; 2. rcx를 임시 레지스터로 사용하여 CPU ID를 구함 (APIC ID)
+    mov rcx, 0xFEE00020
+    mov ecx, [rcx]
+    shr ecx, 24             ; ecx = CPU ID (0 ~ 15)
 
-    ; 3. 범용 레지스터 저장
+    ; 3. 현재의 rsp (유저 스택 주소, rcx 백업됨)를 user_rsp_temp_array에 보관
+    mov [rel user_rsp_temp_array + rcx*8], rsp
+
+    ; 4. 커널 스택으로 전환
+    mov rsp, [rel current_kernel_stack_top_array + rcx*8]
+
+    ; 5. 시스템 콜 번호(rax)와 유저 RFLAGS(r11)를 커널 스택에 임시 보존
     push rax
+    push r11
+
+    ; 6. 유저 스택에 백업해 둔 원래 rcx (유저 RIP)를 읽어 rax에 보관
+    mov r11, [rel user_rsp_temp_array + rcx*8]
+    mov rax, [r11]          ; rax = 원래 유저 RIP
+
+    ; 7. 커널 스택에 iretq 복귀 프레임 빌드
+    push qword 0x1B         ; User SS (Index 3, RPL 3)
+    
+    mov r11, [rel user_rsp_temp_array + rcx*8]
+    add r11, 8              ; 원래 유저 RSP로 보정
+    push r11                ; User RSP
+
+    mov r11, [rsp + 16]     ; 커널 스택의 임시 RFLAGS 복사
+    push r11                ; User RFLAGS
+
+    push qword 0x23         ; User CS (Index 4, RPL 3)
+    push rax                ; User RIP
+
+    ; 8. 범용 레지스터 저장 프레임 빌드 (첫 번째 push rax를 위해 임시 RAX 복사)
+    mov r11, [rsp + 48]     ; 원래 유저 RAX (시스템 콜 번호)
+    push r11                ; push rax
     push rbx
     push rcx
     push rdx
@@ -332,7 +357,8 @@ SyscallEntry:
     push r14
     push r15
 
-    ; 4. C 핸들러 호출
+    ; 9. C 핸들러 호출 준비
+    mov rax, [rsp + 112]    ; 원래 유저 RAX (시스템 콜 번호)
     mov r9,  r8         
     mov r8,  r10        
     mov rcx, rdx        
@@ -341,10 +367,10 @@ SyscallEntry:
     mov rdi, rax        
     call SyscallHandler
 
-    ; 5. 결과값(RAX) 반영
+    ; 10. 결과값(RAX) 반영
     mov [rsp + 112], rax
 
-    ; 6. 범용 레지스터 복원
+    ; 11. 범용 레지스터 복원
     pop r15
     pop r14
     pop r13
@@ -361,5 +387,5 @@ SyscallEntry:
     pop rbx
     pop rax
 
-    ; 7. iretq를 통한 복귀 (sysret보다 안전함)
+    ; 12. iretq를 통한 복귀 (스택 상위의 임시 보존 데이터는 재진입 시 덮어쓰이므로 무시)
     o64 iret
