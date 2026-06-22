@@ -148,6 +148,10 @@ typedef struct
 
 /* ===== 함수 선언 ===== */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * MP_Init: MP Floating Pointer Structure를 탐색하고
  *          MP Configuration Table을 파싱하여 시스템의 멀티프로세서 정보를 수집합니다.
@@ -163,5 +167,9 @@ int MP_Init(void);
  * @return MPInfo 구조체에 대한 포인터 (읽기 전용)
  */
 const MPInfo* MP_GetInfo(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

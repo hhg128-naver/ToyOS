@@ -12,10 +12,18 @@
 /* PIT의 기본 주파수: 1.193182 MHz */
 #define PIT_BASE_FREQUENCY 1193182
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * PIT_Init: 지정된 주파수(Hz)로 타이머 인터럽트 주기를 설정합니다.
  * @param frequency: 초당 인터럽트 발생 횟수 (예: 100 -> 100Hz, 10ms 주기)
  */
 void PIT_Init(uint32_t frequency);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

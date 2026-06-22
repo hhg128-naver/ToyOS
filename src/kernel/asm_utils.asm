@@ -393,3 +393,7 @@ SyscallEntry:
 
     ; 12. iretq를 통한 복귀 (스택 상위의 임시 보존 데이터는 재진입 시 덮어쓰이므로 무시)
     o64 iret
+
+
+global SwitchContext
+SwitchContext:   ; void SwitchContext(void* next_ctx, void* current_ctx);

@@ -42,6 +42,10 @@
 #define ATA_CMD_PACKET            0xA0
 #define ATA_CMD_IDENTIFY          0xEC
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * IDE 드라이버 초기화
  */
@@ -54,5 +58,9 @@ void IDE_Init();
  * @param buffer: 데이터를 저장할 버퍼 (최소 count * 512 바이트)
  */
 void IDE_ReadSectors(uint32_t lba, uint8_t count, void* buffer);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

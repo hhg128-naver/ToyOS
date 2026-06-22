@@ -11,7 +11,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-extern BootInfo *boot_info_global;
+
+
 
 static Task* tasks[MAX_TASKS];
 static int task_count = 0;
@@ -154,12 +155,12 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
         return NULL;
     }
     void* ustack_virt = (void*)0x00007FFFFFFF0000;
-    VMM_MapPageEx(pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx((pt_entry *)pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
 
     uint64_t code_page = (uint64_t)entryPoint & ~0xFFFULL;
-    VMM_MapPageEx(pml4, (void*)code_page, (void*)code_page, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
-    VMM_MapPageEx(pml4, (void*)(code_page + PAGE_SIZE), (void*)(code_page + PAGE_SIZE), PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx((pt_entry *)pml4, (void*)code_page, (void*)code_page, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx((pt_entry *)pml4, (void*)(code_page + PAGE_SIZE), (void*)(code_page + PAGE_SIZE), PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
 
     uint64_t kstack_top = (uint64_t)kstack + TASK_STACK_SIZE;
     newTask->id = task_count;
@@ -225,7 +226,7 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
         return NULL;
     }
     void* ustack_virt = (void*)0x00007FFFFFFF0000;
-    VMM_MapPageEx(pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    VMM_MapPageEx((pt_entry *)pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
 
     Task* newTask = tasks[slot];
@@ -314,6 +315,16 @@ void WaitTask(uint64_t id) {
         
         Yield(); // 아직 실행 중이면 양보
     }
+}
+
+void Schedule_(Task* nextTask, Task* currentTask)
+{
+
+}
+
+void SwitchTask(Task* nextTask, Task* currentTask)
+{
+    SwitchContext(&nextTask->context, &currentTask->context);
 }
 
 uint64_t Schedule(uint64_t current_rsp) {

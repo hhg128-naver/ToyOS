@@ -3,14 +3,12 @@
 #include <stdlib.h>
 #include "shell.h"
 
-extern "C"
-{
 #include "kernel.h"
 #include "console.h"
 #include "pmm.h"
 #include "vfs.h"
 #include "elf.h"
-}
+#include "task.h"
 
 #define MAX_COMMAND_LEN 128
 #define MAX_COMMANDS 16
@@ -318,7 +316,6 @@ public:
         {
             kPrintf("Started process '%s' with PID %d\n", filename, (int)t->id);
             // 유저 앱이 종료될 때까지 쉘 대기
-            extern void WaitTask(uint64_t id);
             WaitTask(t->id);
             kPrintf("Process '%s' (PID %d) finished.\n", filename, (int)t->id);
         }

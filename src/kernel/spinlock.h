@@ -14,10 +14,18 @@ typedef struct
 	uint32_t cpuID;
 } spinlock_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void spinlock_init(spinlock_t* lock);
 void spinlock_lock(spinlock_t* lock);
 void spinlock_unlock(spinlock_t* lock);
 uint64_t spinlock_lock_irqsave(spinlock_t* lock);
 void spinlock_unlock_irqrestore(spinlock_t* lock, uint64_t flags);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // SPINLOCK_H

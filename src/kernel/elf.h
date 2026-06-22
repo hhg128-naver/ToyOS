@@ -34,6 +34,14 @@ typedef struct {
     uint64_t p_align;
 } Elf64_Phdr;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 Task* LoadELFProcess(const char* filename, int arg);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

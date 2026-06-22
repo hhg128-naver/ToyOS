@@ -20,9 +20,17 @@
 #define PIC_IRQ_PRIMARY_ATA    14 /* Primary IDE */
 #define PIC_IRQ_SECONDARY_ATA  15 /* Secondary IDE */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void PIC_Init();
 void PIC_MaskIRQ(uint8_t irq);
 void PIC_UnmaskIRQ(uint8_t irq);
 void PIC_Disable(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -13,6 +13,8 @@ typedef enum {
     TASK_DEAD
 } TaskState;
 
+#pragma pack( push, 1 )
+
 // irq_common에서의 푸시 순서에 맞춘 컨텍스트 구조체
 typedef struct {
     uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
@@ -30,9 +32,16 @@ typedef struct Task {
     void* pml4;            // 태스크전용 페이지 테이블 (주소 공간)
     uint64_t heap_start;   // 유저 힙 시작 주소
     uint64_t heap_end;     // 유저 힙 현재 끝 주소
+    Context context;
 } Task;
 
+#pragma pack( pop )
+
 extern uint64_t current_kernel_stack_top_array[16];
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void InitializeTaskSystem();
 Task* CreateTask(void (*entryPoint)());
@@ -43,5 +52,22 @@ void WaitTask(uint64_t id);
 Task* GetCurrentTask();
 uint64_t Schedule(uint64_t current_rsp);
 void Yield();
+
+void Schedule_(Task* nextTask, Task* currentTask);
+void SwitchTask(Task* nextTask, Task* currentTask);
+
+// defined in asm_utils.asm
+extern void SwitchContext(void* nextContext, void* currentContext);
+
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+class TaskManager
+{
+
+};
+#endif
 
 #endif

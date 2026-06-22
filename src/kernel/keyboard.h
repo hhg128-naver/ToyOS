@@ -6,7 +6,15 @@
 
 #define KEYBOARD_BUFFER_SIZE 256
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void Keyboard_Handler();
 char Keyboard_GetChar();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

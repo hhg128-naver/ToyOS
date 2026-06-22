@@ -37,6 +37,10 @@ typedef struct
     uint64_t attribute;       // 메모리 속성 (RW/Cache 등)
 } MemoryDescriptor;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* kmain: 커널의 진입점(Entry Point). */
 void kmain(BootInfo *boot_info);
 
@@ -61,6 +65,10 @@ uint8_t inb(uint16_t port);
 void outw(uint16_t port, uint16_t data);
 uint16_t inw(uint16_t port);
 void insw(uint16_t port, void *buffer, uint32_t count);
+
+#ifdef __cplusplus
+}
+#endif
 
 // RFLAGS의 IF(Interrupt Flag) 비트는 9번 비트 (0x200)
 #define RFLAGS_IF 0x200

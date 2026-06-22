@@ -17,9 +17,17 @@ typedef struct HeapBlock {
     int is_free;             // 1: 가용, 0: 사용 중
 } HeapBlock;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* 힙 관리 함수 */
 void Heap_Init(BootInfo *binfo);
 void* kmalloc(size_t size);
 void kfree(void* ptr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

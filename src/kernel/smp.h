@@ -53,6 +53,10 @@ extern spinlock_t   g_kernel_lock;      /* 전역 커널 스핀락 */
 
 /* ===== 함수 선언 ===== */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * SMP_Init: ACPI 정보를 기반으로 모든 AP(Application Processor)를
  *           순차적으로 깨웁니다 (INIT-SIPI-SIPI 프로토콜).
@@ -68,5 +72,9 @@ void SMP_Init(void);
  *           반환되지 않습니다.
  */
 void ap_entry(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SMP_H */

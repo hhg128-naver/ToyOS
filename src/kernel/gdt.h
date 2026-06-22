@@ -70,8 +70,14 @@ void InitGDT_AP(uint8_t cpu_index);
 /* BSP의 GDT 포인터 (AP에서 접근) */
 extern struct GDTPtr gdt_ptr;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /* 어셈블리에서 정의할 함수들 */
 extern void sLoadGDT(struct GDTPtr *gdt_ptr);
 extern void LoadTSS(uint16_t tss_selector);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

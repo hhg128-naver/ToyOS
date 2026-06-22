@@ -214,6 +214,10 @@ typedef struct
 
 /* ===== 함수 선언 ===== */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * ACPI_Init: RSDP로부터 RSDT/XSDT를 찾고 MADT를 파싱하여
  *            시스템의 APIC 토폴로지 정보를 수집합니다.
@@ -230,5 +234,9 @@ int ACPI_Init(BootInfo *boot_info);
  * @return ACPIInfo 구조체에 대한 포인터 (읽기 전용)
  */
 const ACPIInfo* ACPI_GetInfo(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -22,6 +22,10 @@ struct IDTPtr
     uint64_t base;
 } __attribute__((packed));
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* IDT 초기화 함수 */
 void InitIDT();
 
@@ -49,5 +53,9 @@ extern void irq33(); // IRQ 1: Keyboard
 extern void irq44(); // IRQ 12: Mouse
 extern void irq48(); // APIC Timer
 extern void irq255(); // LAPIC Spurious Interrupt (벡터 0xFF, EOI 불필요)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

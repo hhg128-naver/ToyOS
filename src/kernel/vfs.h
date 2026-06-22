@@ -41,6 +41,10 @@ typedef struct VFS_Node {
     struct VFS_Node* ptr; // 마운트 지점 등의 참조용
 } VFS_Node;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * 시스템 루트 노드
  */
@@ -52,5 +56,9 @@ extern VFS_Node* vfs_root;
 uint32_t VFS_Read(VFS_Node* node, uint32_t offset, uint32_t size, uint8_t* buffer);
 VFS_Node* VFS_ReadDir(VFS_Node* node, uint32_t index);
 VFS_Node* VFS_FindDir(VFS_Node* node, char* name);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -21,6 +21,10 @@ typedef struct
     int8_t scroll;          /* 마우스 휠 스크롤 델타 (양수=위, 음수=아래) */
 } MouseState;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void Mouse_Init(BootInfo *binfo);
 void Mouse_Handler();
 MouseState GetMouseState();
@@ -31,5 +35,9 @@ void Mouse_SetSensitivity(int sensitivity);
  * @return 스크롤 델타 (양수=위로 스크롤, 음수=아래로 스크롤, 0=변화 없음)
  */
 int8_t Mouse_GetScroll(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

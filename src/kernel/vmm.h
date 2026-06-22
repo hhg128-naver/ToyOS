@@ -13,6 +13,10 @@
 /* 페이지 테이블 엔트리 구조 */
 typedef uint64_t pt_entry;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* VMM 초기화 및 매핑 */
 void VMM_Init(BootInfo *binfo);
 void VMM_MapPage(void* virtual_addr, void* physical_addr, uint64_t flags);
@@ -25,5 +29,9 @@ void VMM_FreeAddressSpace(void* pml4);
 /* 페이지 디렉토리 로드 */
 extern void LoadPageTable(void* pml4_addr);
 extern void* GetCR3();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

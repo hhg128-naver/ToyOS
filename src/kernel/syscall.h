@@ -10,10 +10,21 @@
 #define SYSCALL_WAIT    3
 #define SYSCALL_SBRK    4
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* 시스템 콜 초기화 (MSR 설정 등) */
 void InitSyscall();
 
 /* C 언어 시스템 콜 핸들러 */
 uint64_t SyscallHandler(uint64_t syscall_num, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5);
+
+/* 어셈블리 엔트리 포인트 선언 */
+extern void SyscallEntry();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -80,6 +80,10 @@ bits:  [31:4]  [3]  [2]  [1]  [0]
 #define PIT_BASE_FREQ          1193182
 #define PIT_CAL_COUNT          (PIT_BASE_FREQ / PIT_CALIBRATION_FREQ)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* ===== 함수 선언 ===== */
 
 /**
@@ -131,6 +135,10 @@ void APIC_Write(uint32_t offset, uint32_t value);
 /* 어셈블리(asm_utils.asm)에서 정의된 MSR 함수 */
 extern uint64_t ReadMSR(uint32_t msr);
 extern void WriteMSR(uint32_t msr, uint64_t value);
+
+#ifdef __cplusplus
+}
+#endif
 
 /* Interrupt Source Override Flags 가독성을 위한 상수 */
 #define ISO_FLAGS_POLARITY_MASK         0x03
