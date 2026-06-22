@@ -44,10 +44,8 @@ EFI_LDFLAGS = -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic \
               -L$(EFI_LIB) $(EFI_CRT0)
 
 # 소스 파일 및 오브젝트 파일
-C_SOURCES    = $(wildcard $(KERNEL_DIR)/*.c)
 UEFI_SOURCES = $(wildcard $(UEFI_DIR)/*.c)
 
-C_OBJECTS    = $(patsubst $(KERNEL_DIR)/%.c, $(KERNEL_BUILD_DIR)/%.o, $(C_SOURCES))
 CPP_SOURCES  = $(wildcard $(KERNEL_DIR)/*.cpp)
 CPP_OBJECTS  = $(patsubst $(KERNEL_DIR)/%.cpp, $(KERNEL_BUILD_DIR)/%.o, $(CPP_SOURCES))
 # ap_trampoline.asm은 flat binary(-f bin)로, ap_trampoline_wrapper.asm은
@@ -71,7 +69,7 @@ all: $(TARGET) uefi user_apps
 user_apps:
 	$(MAKE) -C user
 
-$(TARGET): $(C_OBJECTS) $(CPP_OBJECTS) $(ASM_OBJECTS) $(TRAMPOLINE_OBJ)
+$(TARGET): $(CPP_OBJECTS) $(ASM_OBJECTS) $(TRAMPOLINE_OBJ)
 	$(LD_LLD) $(LDFLAGS) -o $@ $^ $(LIBC_A) $(LIBGCC_A)
 
 # AP 트램펄린: flat binary 빌드 (물리 주소 0x8000용, ORG 0x8000)
@@ -83,10 +81,6 @@ $(TRAMPOLINE_BIN): $(KERNEL_DIR)/ap_trampoline.asm
 $(TRAMPOLINE_OBJ): $(KERNEL_DIR)/ap_trampoline_wrapper.asm $(TRAMPOLINE_BIN)
 	@mkdir -p $(KERNEL_BUILD_DIR)
 	$(NASM) -f elf64 $< -o $@
-
-$(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.c
-	@mkdir -p $(KERNEL_BUILD_DIR)
-	$(CLANG) $(CFLAGS) $< -o $@
 
 $(KERNEL_BUILD_DIR)/%.o: $(KERNEL_DIR)/%.cpp
 	@mkdir -p $(KERNEL_BUILD_DIR)
