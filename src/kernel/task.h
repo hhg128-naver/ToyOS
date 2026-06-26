@@ -63,11 +63,11 @@ extern void SwitchContext(void* nextContext, void* currentContext);
 }
 #endif
 
-#ifdef __cplusplus
 class TaskManager
 {
 
 };
-#endif
+
+extern TaskManager* g_TaskManager;
 
 #endif

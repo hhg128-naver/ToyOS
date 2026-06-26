@@ -50,24 +50,22 @@ void InitGDT() {
     /* NULL Descriptor */
     SetGDTEntry(0, 0, 0, 0, 0);
 
-    /* Kernel Code/Data Segment (64-bit) - Index 1(0x08)/2(0x10)*/
-    SetGDTEntry(1, 0, 0xFFFFFFFF, 0x9A, 0xA0);
-    SetGDTEntry(2, 0, 0xFFFFFFFF, 0x92, 0xC0);
+    /* Kernel Code Segment (64-bit) - Index 1 (Selector 0x08) */
+    SetGDTEntry(1, 0, 0xFFFFFFFF, GDT_ACCESS_KERNEL_CODE, GDT_FLAG_LONG_MODE | GDT_FLAG_GRANULARITY_4K);
 
-    /* User Data Segment (64-bit) - Index 3 (0x18 | 3 = 0x1B)
-     * Access: 0xF3 (Present, Ring 3, Data, Writable, Accessed)
-     */
-    SetGDTEntry(3, 0, 0xFFFFFFFF, 0xF3, 0xC0);
+    /* Kernel Data Segment (64-bit) - Index 2 (Selector 0x10) */
+    SetGDTEntry(2, 0, 0xFFFFFFFF, GDT_ACCESS_KERNEL_DATA, GDT_FLAG_SIZE_32 | GDT_FLAG_GRANULARITY_4K);
 
-    /* User Code Segment (64-bit) - Index 4 (0x20 | 3 = 0x23)
-     * Access: 0xFB (Present, Ring 3, Code, Readable, Accessed)
-     */
-    SetGDTEntry(4, 0, 0xFFFFFFFF, 0xFB, 0xA0);
+    /* User Data Segment (64-bit) - Index 3 (Selector 0x1B) */
+    SetGDTEntry(3, 0, 0xFFFFFFFF, GDT_ACCESS_USER_DATA, GDT_FLAG_SIZE_32 | GDT_FLAG_GRANULARITY_4K);
 
-    /* TSS Descriptor - Index 5 (0x28) (CPU 0 / BSP 전용) */
+    /* User Code Segment (64-bit) - Index 4 (Selector 0x23) */
+    SetGDTEntry(4, 0, 0xFFFFFFFF, GDT_ACCESS_USER_CODE, GDT_FLAG_LONG_MODE | GDT_FLAG_GRANULARITY_4K);
+
+    /* TSS Descriptor - Index 5 (Selector 0x28) (CPU 0 / BSP 전용) */
     memset(&tss_array[0], 0, sizeof(struct TSS));
     tss_array[0].iopb_offset = sizeof(struct TSS);
-    SetTSSEntry(5, (uint64_t)&tss_array[0], sizeof(struct TSS) - 1, 0x89);
+    SetTSSEntry(5, (uint64_t)&tss_array[0], sizeof(struct TSS) - 1, GDT_ACCESS_TSS);
 
     /* GDT Pointer 설정 */
     gdt_ptr.limit = (sizeof(struct GDTEntry) * (5 + SMP_MAX_CPUS * 2)) - 1;
@@ -77,7 +75,7 @@ void InitGDT() {
     sLoadGDT(&gdt_ptr);
 
     /* TSS 로드 */
-    LoadTSS(0x28);
+    LoadTSS(GDT_TSS_START);
 }
 
 /*
@@ -96,7 +94,7 @@ void InitGDT_AP(uint8_t cpu_index)
         int tss_gdt_index = 5 + (int)cpu_index * 2; 
         memset(&tss_array[cpu_index], 0, sizeof(struct TSS));
         tss_array[cpu_index].iopb_offset = sizeof(struct TSS);
-        SetTSSEntry(tss_gdt_index, (uint64_t)&tss_array[cpu_index], sizeof(struct TSS) - 1, 0x89);
+        SetTSSEntry(tss_gdt_index, (uint64_t)&tss_array[cpu_index], sizeof(struct TSS) - 1, GDT_ACCESS_TSS);
 
         /* TSS 로드 (GDT selector = tss_gdt_index * 8) */
         LoadTSS(tss_gdt_index * 8);

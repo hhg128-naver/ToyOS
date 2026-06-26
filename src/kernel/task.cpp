@@ -12,7 +12,7 @@
 #include <stdbool.h>
 
 
-
+TaskManager* g_TaskManager = nullptr;
 
 static Task* tasks[MAX_TASKS];
 static int task_count = 0;
@@ -32,7 +32,10 @@ static inline uint32_t get_cpu_id(void)
     return (id < SMP_MAX_CPUS) ? id : 0;
 }
 
-void InitializeTaskSystem() {
+void InitializeTaskSystem() 
+{
+    g_TaskManager = new TaskManager;
+
     /* per-CPU 인덱스 배열 초기화 (모두 -1: 태스크 없음) */
     for (int i = 0; i < SMP_MAX_CPUS; i++)
         per_cpu_task_idx[i] = -1;
