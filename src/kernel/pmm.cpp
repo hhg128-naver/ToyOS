@@ -1,9 +1,21 @@
 #include "pmm.h"
 
-static uint8_t *bitmap;
 static uint64_t total_pages;
 static uint64_t free_pages;
 static uint64_t bitmap_size;
+
+/* 최대 지원 물리 메모리: 4GB → 비트맵 크기 = 4GB / 4KB / 8 = 131072 bytes (128KB) */
+#define MAX_SUPPORTED_MEMORY  (4ULL * 1024 * 1024 * 1024)  // 4GB
+#define MAX_BITMAP_SIZE       (MAX_SUPPORTED_MEMORY / PAGE_SIZE / 8)  // 131072 bytes
+
+/* 비트맵 저장용 정적 배열 (.bss 섹션에 위치) */
+static uint8_t bitmap_storage[MAX_BITMAP_SIZE];
+static uint8_t* bitmap;        // 비트맵 포인터 (전역 static)
+
+namespace
+{
+
+}
 
 /* Helper functions to manage the bitmap */
 static void Bitmap_Set(uint64_t page_idx)
@@ -25,7 +37,7 @@ void PMM_Init(BootInfo *binfo)
 {
 	uint64_t max_addr = 0;
 	uint64_t num_entries = binfo->mmap_size / binfo->descriptor_size;
-	uint8_t *mmap_ptr = (uint8_t *)binfo->mmap;
+	uint8_t* mmap_ptr = (uint8_t*)binfo->mmap;
 
 	/* 1. Calculate total memory size from UEFI memory map */
 	for (uint64_t i = 0; i < num_entries; i++)
@@ -41,11 +53,19 @@ void PMM_Init(BootInfo *binfo)
 	total_pages = max_addr / PAGE_SIZE;
 	bitmap_size = total_pages / 8;
 	if (total_pages % 8 != 0)
+	{
 		bitmap_size++;
+	}
 
-	/* 2. 비트맵을 저장할 적절한 위치 선정 (단순화를 위해 2MB 주소 근처 사용 가능 영역 탐색) */
-	/* 실제로는 메모리 맵에서 'LoaderData'나 'ConventionalMemory' 중 충분히 큰 곳을 찾아야 함 */
-	bitmap = (uint8_t *)0x200000; // 임시: 2MB 위치 (충분한 공간이 있다고 가정)
+	/* 2. 비트맵을 저장할 적절한 위치 선정 */
+    if (bitmap_size > MAX_BITMAP_SIZE)
+    {
+        // 런타임 비트맵 크기 초과 에러 처리
+        // printf 등을 사용할 수 있도록 되어 있다고 전제함
+        // 만약 printf가 준비되지 않은 시점이라도 일단 루프로 홀트시킵니다.
+        while(1);
+    }
+    bitmap = bitmap_storage; // 커널 .bss 섹션 내 정적 배열 사용
 
 	/* 3. Mark EfiConventionalMemory (Type 7) as free */
 	for (uint64_t i = 0; i < bitmap_size; i++)
