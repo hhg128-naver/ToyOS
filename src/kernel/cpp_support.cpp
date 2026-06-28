@@ -7,6 +7,11 @@ typedef void (*constructor)();
 extern constructor __init_array_start[];
 extern constructor __init_array_end[];
 
+/*
+* 전역 및 정적(static) 객체의 생성자(Constructor)들을 순차적으로 실행하기 위해 사용하는 링커 심볼
+* 컴파일러는 전역 객체의 생성자 호출 코드 주소들을 .init_array라는 특수한 섹션에 함수 포인터 배열 형태로 모아둡니다. 
+* 링커 스크립트에서는 이 섹션의 앞과 뒤에 시작과 끝을 알리는 심볼을 배치합니다.
+*/
 void call_constructors() {
     for (constructor* i = __init_array_start; i != __init_array_end; i++) {
         (*i)();

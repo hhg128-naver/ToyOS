@@ -35,30 +35,41 @@ void kmain(BootInfo *boot_info)
     InitIDT();
     InitSyscall();
 
-	// Physical Memory Manager와 Virtual Memory Manager 초기화는 GDT/IDT 설정 이후에 수행되어야 합니다.
     PMM_Init(boot_info);
     VMM_Init(boot_info);
-
     Heap_Init(boot_info);
 
-	// c++ 전역 객체의 생성자를 호출하여 초기화 작업 수행 (예: std::string, std::vector 등)
+    /*
+    * c++ 전역 객체의 생성자를 호출하여 초기화 작업 수행 (예: std::string, std::vector 등)
+    */
     call_constructors();
 
+    /*
+    * 부동 소수점 연산 초기화
+    */
     InitializeFPU();
 
-    PIC_Init();
-    PIC_Disable(); /* 레거시 8259A PIC 영구 비활성화 */
+    /*
+    * PIC 초기화는 필요 없어짐.하지만 그냥 놔둠
+    */ 
+    PIC_Init();     
+    PIC_Disable();  /* 레거시 8259A PIC 영구 비활성화 */
 
-    /* MP Configuration Table 탐색 (멀티프로세서 정보 수집) */
-    /* Deprecated: MP_Init()는 더 이상 사용되지 않음 */
+    /* 
+    * MP Configuration Table 탐색(멀티프로세서 정보 수집) 
+    * Deprecated: MP_Init()는 더 이상 사용되지 않음
+    */
     MP_Init();
 
-    /* ACPI MADT 파싱 (인터럽트 컨트롤러 토폴로지 수집) */
+    /* 
+    * ACPI MADT 파싱 (인터럽트 컨트롤러 토폴로지 수집) 
+    */
     ACPI_Init(boot_info);
 
     /* Local APIC 활성화 및 APIC Timer로 PIT 대체 */
+    /* 100Hz (10ms 주기) */
     APIC_Init();
-    APIC_Timer_Init(100); /* 100Hz (10ms 주기) */
+    APIC_Timer_Init(100); 
     
     /* I/O APIC 대칭 I/O 모드 활성화 및 인터럽트 라우팅 설정 */
     IOAPIC_Init();
@@ -68,6 +79,7 @@ void kmain(BootInfo *boot_info)
 
     InitializeTaskSystem();
 
+    /* 파일 시스템 준비 */
     IDE_Init();
     FAT32_Init();
     
@@ -78,13 +90,13 @@ void kmain(BootInfo *boot_info)
     kPrintf("System Ready with Interactive Windowing System.\n");
 
     /* 배경 레이어 생성 */
-    Layer *bg_layer = CreateLayer(boot_info->horizontal_resolution, boot_info->vertical_resolution, 0xFF000001);
-    Layer_DrawFillRect(bg_layer, 0, 0, boot_info->horizontal_resolution, boot_info->vertical_resolution, 0x00000033);
-    Layer_PrintString(bg_layer, 10, boot_info->vertical_resolution - 20, "ToyOS v0.1 - Terminal Emulation Mode", 0x00FFFFFF);
-    LayerManager_AddLayer(bg_layer);
+    //Layer *bg_layer = CreateLayer(boot_info->horizontal_resolution, boot_info->vertical_resolution, 0xFF000001);
+    //Layer_DrawFillRect(bg_layer, 0, 0, boot_info->horizontal_resolution, boot_info->vertical_resolution, 0x00000033);
+    //Layer_PrintString(bg_layer, 10, boot_info->vertical_resolution - 20, "ToyOS v0.1 - Terminal Emulation Mode", 0x00FFFFFF);
+    //LayerManager_AddLayer(bg_layer);
 
-    /* 쉘 윈도우 생성 */
-    shell_win = CreateWindow(100, 100, 640, 480, "Terminal - Shell");
+    ///* 쉘 윈도우 생성 */
+    //shell_win = CreateWindow(100, 100, 640, 480, "Terminal - Shell");
     //g_ShellLayer = shell_win->layer;
 
     //CreateTask(GUI_Task);

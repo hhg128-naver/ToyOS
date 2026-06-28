@@ -66,7 +66,8 @@ void InitializeTaskSystem()
     kPrintf("Task System Initialized.\n");
 }
 
-Task* CreateTask(void (*entryPoint)()) {
+Task* CreateTask(TaskEntryPointFunc entryPoint)
+{
     uint64_t flags = spinlock_lock_irqsave(&g_kernel_lock);
 
     if (task_count >= MAX_TASKS) {

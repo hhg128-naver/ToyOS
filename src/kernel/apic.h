@@ -4,8 +4,11 @@
 #include "kernel.h"
 #include <stdbool.h>
 
-/* ===== Local APIC MMIO 베이스 주소 ===== */
-#define APIC_BASE_ADDR          0xFEE00000ULL
+/* ===== Local APIC 주소 ===== */
+#define APIC_PHYS_ADDR          0xFEE00000ULL  /* 물리 주소 (MSR 기본값) */
+
+#include "fixmap.h"
+#define APIC_VIRT_ADDR          ((uint64_t)fix_to_virt(fixed_addresses::FIX_APIC_BASE))  /* Fixmap 가상 주소 */
 
 /* ===== Local APIC 레지스터 오프셋 ===== */
 #define APIC_ID_REG             0x020  /* Local APIC ID */

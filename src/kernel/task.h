@@ -13,6 +13,8 @@ typedef enum {
     TASK_DEAD
 } TaskState;
 
+typedef void (*TaskEntryPointFunc)();
+
 #pragma pack( push, 1 )
 
 // irq_common에서의 푸시 순서에 맞춘 컨텍스트 구조체

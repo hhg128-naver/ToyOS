@@ -8,6 +8,7 @@ section .text
 global sLoadGDT
 global LoadIDT
 global LoadPageTable
+global InvalidatePage
 global isr0, isr1, isr2, isr3, isr4, isr5, isr6, isr7, isr8, isr9
 global isr10, isr11, isr12, isr13, isr14, isr15, isr16, isr17, isr18, isr19
 global isr20, isr21, isr22, isr23, isr24, isr25, isr26, isr27, isr28, isr29
@@ -58,6 +59,12 @@ LoadPageTable:
 global GetCR3
 GetCR3:
     mov rax, cr3
+    ret
+
+; InvalidatePage(void* virtual_addr)
+; 지정된 가상 주소의 TLB 엔트리를 무효화합니다.
+InvalidatePage:
+    invlpg [rdi]
     ret
 
 ; 인터럽트 활성화/비활성화
@@ -308,7 +315,8 @@ SyscallEntry:
     push rcx
 
     ; 2. rcx를 임시 레지스터로 사용하여 CPU ID를 구함 (APIC ID)
-    mov rcx, 0xFEE00020
+    ;    Fixmap 가상 주소: FIXMAP_TOP(0xFFFFFFFFFFFFF000) + APIC_ID_REG(0x020)
+    mov rcx, 0xFFFFFFFFFFFFF020
     mov ecx, [rcx]
     shr ecx, 24             ; ecx = CPU ID (0 ~ 15)
     cmp ecx, 16             ; SMP_MAX_CPUS 경계 검사

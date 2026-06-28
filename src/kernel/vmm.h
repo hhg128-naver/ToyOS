@@ -29,6 +29,7 @@ void VMM_FreeAddressSpace(void* pml4);
 /* 페이지 디렉토리 로드 */
 extern void LoadPageTable(void* pml4_addr);
 extern void* GetCR3();
+extern void InvalidatePage(void* virtual_addr);
 
 #ifdef __cplusplus
 }

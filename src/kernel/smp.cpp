@@ -236,6 +236,11 @@ void SMP_Init(void)
     uint32_t bsp_lapic_id = APIC_Read(APIC_ID_REG) >> 24;
     smp_register_bsp(bsp_lapic_id);
 
+#if !CONFIG_SMP
+    kPrintf("SMP: SMP is disabled via CONFIG_SMP (Single-core mode).\n");
+    return;
+#endif
+
     if (!acpi)
     {
         kPrintf("SMP: ACPI info not found. Skipping AP boot.\n");

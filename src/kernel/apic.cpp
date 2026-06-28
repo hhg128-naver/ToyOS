@@ -1,10 +1,12 @@
 #include "apic.h"
 #include "vmm.h"
+#include "fixmap.h"
 #include "acpi.h"
 #include <stdio.h>
 #include <stdbool.h>
 
-#define IOAPIC_BASE_ADDR        0xFEC00000ULL
+#define IOAPIC_PHYS_ADDR        0xFEC00000ULL
+#define IOAPIC_VIRT_ADDR        ((uint64_t)fix_to_virt(FIX_IOAPIC_BASE))
 #define IOAPIC_REG_SEL          0x00
 #define IOAPIC_REG_WIN          0x10
 #define IOAPIC_ID_INDEX         0x00
@@ -23,7 +25,7 @@ static volatile uint32_t apic_calibrated_ticks_per_sec = 0;
  */
 uint32_t APIC_Read(uint32_t offset)
 {
-    volatile uint32_t *reg = (volatile uint32_t *)(APIC_BASE_ADDR + offset);
+    volatile uint32_t *reg = (volatile uint32_t *)(APIC_VIRT_ADDR + offset);
     return *reg;
 }
 
@@ -34,7 +36,7 @@ uint32_t APIC_Read(uint32_t offset)
  */
 void APIC_Write(uint32_t offset, uint32_t value)
 {
-    volatile uint32_t *reg = (volatile uint32_t *)(APIC_BASE_ADDR + offset);
+    volatile uint32_t *reg = (volatile uint32_t *)(APIC_VIRT_ADDR + offset);
     *reg = value;
 }
 
@@ -92,13 +94,11 @@ void APIC_Init(void)
     EnableGlobalLocalAPIC();
 
     /*
-     *  APIC MMIO 영역을 페이지 테이블에 매핑 (캐시 비활성화)
-     *    VMM_Init에서 0~4GB를 identity mapping하지만,
-     *    APIC 레지스터는 캐시되면 안 되므로 PCD+PWT 플래그를 추가합니다.
+     *  APIC MMIO 영역을 Fixmap 가상 주소에 매핑 (캐시 비활성화)
+     *    Fixmap을 사용하여 물리 주소와 독립된 고정 가상 주소로 접근합니다.
+     *    APIC 레지스터는 캐시되면 안 되므로 PCD+PWT 플래그를 설정합니다.
      */
-    VMM_MapPage(
-        (void*)APIC_BASE_ADDR, 
-        (void*)APIC_BASE_ADDR, 
+    Fixmap_Set(fixed_addresses::FIX_APIC_BASE, apic_phys_base,
         PAGE_PRESENT | PAGE_WRITABLE | PAGE_CACHE_DISABLE | PAGE_WRITE_THROUGH
     );
 
@@ -113,16 +113,14 @@ void APIC_Init(void)
     uint32_t apic_ver = APIC_Read(APIC_VERSION_REG) & 0xFF;
     kPrintf("APIC Initialized: ID=%u, Version=0x%x\n", apic_id, apic_ver);
 
-    /* I/O APIC 감지 및 상태 확인 */
-    VMM_MapPage(
-        (void*)IOAPIC_BASE_ADDR,
-        (void*)IOAPIC_BASE_ADDR,
+    /* I/O APIC 감지 및 상태 확인: Fixmap 가상 주소에 매핑 */
+    Fixmap_Set(FIX_IOAPIC_BASE, IOAPIC_PHYS_ADDR,
         PAGE_PRESENT | PAGE_WRITABLE | PAGE_CACHE_DISABLE | PAGE_WRITE_THROUGH
     );
 
-	// IO APIC 레지스터에 접근하기 위한 포인터 설정
-    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_SEL);
-    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_WIN);
+	// IO APIC 레지스터에 접근하기 위한 포인터 설정 (Fixmap 가상 주소 사용)
+    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_VIRT_ADDR + IOAPIC_REG_SEL);
+    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_VIRT_ADDR + IOAPIC_REG_WIN);
 
     *ioapic_sel = IOAPIC_VER_INDEX;
     uint32_t ioapic_ver = *ioapic_win;
@@ -291,16 +289,16 @@ void APIC_Init_AP(void)
 
 void IOAPIC_Write(uint32_t reg, uint32_t value)
 {
-    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_SEL);
-    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_WIN);
+    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_VIRT_ADDR + IOAPIC_REG_SEL);
+    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_VIRT_ADDR + IOAPIC_REG_WIN);
     *ioapic_sel = reg;
     *ioapic_win = value;
 }
 
 uint32_t IOAPIC_Read(uint32_t reg)
 {
-    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_SEL);
-    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_BASE_ADDR + IOAPIC_REG_WIN);
+    volatile uint32_t *ioapic_sel = (volatile uint32_t *)(IOAPIC_VIRT_ADDR + IOAPIC_REG_SEL);
+    volatile uint32_t *ioapic_win = (volatile uint32_t *)(IOAPIC_VIRT_ADDR + IOAPIC_REG_WIN);
     *ioapic_sel = reg;
     return *ioapic_win;
 }
