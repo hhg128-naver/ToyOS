@@ -1,4 +1,5 @@
 #include "pmm.h"
+#include "heap.h"
 
 static uint64_t total_pages;
 static uint64_t free_pages;
@@ -67,18 +68,19 @@ void PMM_Init(BootInfo *binfo)
     }
     bitmap = bitmap_storage; // 커널 .bss 섹션 내 정적 배열 사용
 
-	/* 3. Mark EfiConventionalMemory (Type 7) as free */
+	/* 우선 모든 영역을 사용중으로 설정한다. */
 	for (uint64_t i = 0; i < bitmap_size; i++)
 	{
 		bitmap[i] = 0xFF;
 	}
 
+	/* 사용 가능한 부분을 찾아서 clear 시켜준다. */
 	free_pages = 0;
 	for (uint64_t i = 0; i < num_entries; i++)
 	{
-		MemoryDescriptor *desc = (MemoryDescriptor *)(mmap_ptr + (i * binfo->descriptor_size));
-		if (desc->type == 7)
-		{ // EfiConventionalMemory (사용 가능)
+		MemoryDescriptor* desc = (MemoryDescriptor*)(mmap_ptr + (i * binfo->descriptor_size));
+		if (desc->type == 7) // EfiConventionalMemory (사용 가능)
+		{ 
 			for (uint64_t p = 0; p < desc->number_of_pages; p++)
 			{
 				uint64_t page_idx = (desc->physical_start / PAGE_SIZE) + p;
@@ -88,10 +90,11 @@ void PMM_Init(BootInfo *binfo)
 		}
 	}
 
-	/* 4. Mandatory Protection: Mark 0MB ~ 4MB as used
-	 * This covers: Null page, BIOS area, Kernel, Stack, and the Bitmap itself.
+	/* 4. Mandatory Protection: Mark 0MB ~ Heap End as used
+	 * This covers: Null page, BIOS area, Kernel, Stack, and the Heap/Bitmap itself.
 	 */
-	for (uint64_t i = 0; i < (0x4000000 / PAGE_SIZE); i++)
+	uint64_t protect_end = HEAP_START + HEAP_SIZE;
+	for (uint64_t i = 0; i < (protect_end / PAGE_SIZE); i++)
 	{
 		if (Bitmap_Get(i) == 0)
 		{
@@ -112,7 +115,7 @@ void *PMM_AllocPage()
 			return (void *)(i * PAGE_SIZE);
 		}
 	}
-	return NULL;
+	return nullptr;
 }
 
 void PMM_FreePage(void *addr)
