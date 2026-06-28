@@ -213,8 +213,8 @@ void *VMM_CreateAddressSpace()
 			{
 				new_pd[j] = master_pd[j];
 			}
-			/* semi-shared entries에도 PAGE_USER를 줘서 VMM_FreeAddressSpace에서 추적 가능하게 함 */
-			new_pdpt[i] = (uint64_t)new_pd | (master_pdpt[i] & 0xFFFULL) | PAGE_USER;
+			/* semi-shared entries에는 PAGE_USER를 주지 않아 VMM_FreeAddressSpace에서 해제되지 않도록 보호 */
+			new_pdpt[i] = (uint64_t)new_pd | (master_pdpt[i] & 0xFFFULL);
 		}
 	}
 
@@ -230,7 +230,7 @@ void *VMM_CreateAddressSpace()
 	return pml4;
 }
 
-static void VMM_FreeRecursive(pt_entry *table, int level)
+static void VMM_FreeRecursive(pt_entry *table, int level, uint64_t base_vaddr)
 {
 	if (!table)
 		return;
@@ -239,6 +239,21 @@ static void VMM_FreeRecursive(pt_entry *table, int level)
 	{
 		if (table[i] & PAGE_PRESENT)
 		{
+			/* 이 엔트리가 가리키는 가상 주소 범위 계산 */
+			uint64_t entry_vaddr = base_vaddr;
+			if (level == 1)      // PDPT 수준: 각 엔트리는 1GB 범위 담당
+				entry_vaddr += (uint64_t)i << 30;
+			else if (level == 2) // PD 수준: 각 엔트리는 2MB 범위 담당
+				entry_vaddr += (uint64_t)i << 21;
+			else if (level == 3) // PT 수준: 각 엔트리는 4KB 범위 담당
+				entry_vaddr += (uint64_t)i << 12;
+
+			/* 0x40000000 (1GB) 미만의 커널 영역 가상 주소는 절대 해제하지 않도록 보호 */
+			if (entry_vaddr < 0x40000000ULL)
+			{
+				continue;
+			}
+
 			/* PAGE_USER 비트가 있는 경우에만 유저가 소유한 페이지로 간주하고 해제 */
 			if (table[i] & PAGE_USER)
 			{
@@ -256,7 +271,7 @@ static void VMM_FreeRecursive(pt_entry *table, int level)
 				 */
 				if (level < 3)
 				{
-					VMM_FreeRecursive((pt_entry *)child, level + 1);
+					VMM_FreeRecursive((pt_entry *)child, level + 1, entry_vaddr);
 				}
 
 				/* 자식 페이지(PD, PT, 또는 실제 데이터 페이지) 해제 */
@@ -282,7 +297,7 @@ void VMM_FreeAddressSpace(void *pml4_phys)
 			void *child = (void *)(pml4[0] & 0x000FFFFFFFFFF000ULL);
 			if (child)
 			{
-				VMM_FreeRecursive((pt_entry *)child, 1); // level 1 (PDPT)부터 시작
+				VMM_FreeRecursive((pt_entry *)child, 1, 0); // level 1 (PDPT)부터 시작, base_vaddr = 0
 				PMM_FreePage(child);
 				pml4[0] = 0;
 			}
