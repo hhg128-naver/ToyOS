@@ -10,7 +10,7 @@ static char kbd_buffer[KEYBOARD_BUFFER_SIZE];
 static int kbd_head = 0;
 static int kbd_tail = 0;
 
-/* Scan Code Set 1 (일부) */
+/* Scan Code Set 1 - Shift 미눌림 상태 */
 static char ScanCodeTable[] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
     '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
@@ -18,12 +18,33 @@ static char ScanCodeTable[] = {
     'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' '
 };
 
+/* Scan Code Set 1 - Shift 눌림 상태 */
+static char ScanCodeTableShift[] = {
+    0,  27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
+    '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
+    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0, '|',
+    'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*', 0, ' '
+};
+
+/* Shift 키 상태 변수 */
+static bool shift_pressed = false;
+
 void Keyboard_Handler() {
     uint8_t scancode = inb(0x60);
 
+    /* Shift 키 눌림 및 떨어짐 감지 */
+    if (scancode == 0x2A || scancode == 0x36) {
+        shift_pressed = true;
+        return;
+    }
+    if (scancode == 0xAA || scancode == 0xB6) {
+        shift_pressed = false;
+        return;
+    }
+
     /* 키를 눌렀을 때만 (0x80 보다 작을 때) 처리 */
     if (scancode < 0x80) {
-        char c = ScanCodeTable[scancode];
+        char c = shift_pressed ? ScanCodeTableShift[scancode] : ScanCodeTable[scancode];
         if (c != 0) {
             uint64_t flags = spinlock_lock_irqsave(&kbd_lock);
             /* 버퍼에 공간이 있으면 저장 */
