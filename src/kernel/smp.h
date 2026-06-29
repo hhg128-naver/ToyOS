@@ -5,7 +5,7 @@
 
 /* ===== 상수 정의 ===== */
 
-#define CONFIG_SMP              0       /* 1: 멀티코어(SMP) 활성화, 0: 싱글코어 전용 */
+#define CONFIG_SMP              1       /* 1: 멀티코어(SMP) 활성화, 0: 싱글코어 전용 */
 #define SMP_MAX_CPUS            16      /* 지원 최대 CPU 수 */
 #define AP_BOOT_DATA_PHYS       0x7F00  /* 공유 부팅 데이터 물리 주소 */
 #define AP_TRAMPOLINE_PHYS      0x8000  /* AP 트램펄린 물리 주소 (SIPI 벡터 << 12) */

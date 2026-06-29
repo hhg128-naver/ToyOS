@@ -1,10 +1,9 @@
 #include "keyboard.h"
 #include "task.h"
+#include "spinlock.h"
 
-
-
-
-
+/* 키보드 스핀락 */
+static spinlock_t kbd_lock = {0};
 
 /* 키보드 원형 버퍼 */
 static char kbd_buffer[KEYBOARD_BUFFER_SIZE];
@@ -26,12 +25,14 @@ void Keyboard_Handler() {
     if (scancode < 0x80) {
         char c = ScanCodeTable[scancode];
         if (c != 0) {
+            uint64_t flags = spinlock_lock_irqsave(&kbd_lock);
             /* 버퍼에 공간이 있으면 저장 */
             int next = (kbd_head + 1) % KEYBOARD_BUFFER_SIZE;
             if (next != kbd_tail) {
                 kbd_buffer[kbd_head] = c;
                 kbd_head = next;
             }
+            spinlock_unlock_irqrestore(&kbd_lock, flags);
 
             /* 에코 (화면에 즉시 출력) */
             char str[2] = {c, '\0'};
@@ -42,11 +43,15 @@ void Keyboard_Handler() {
 
 char Keyboard_GetChar() {
     /* 버퍼가 비어있으면 데이터가 들어올 때까지 양보 */
-    while (kbd_head == kbd_tail) {
+    while (1) {
+        uint64_t flags = spinlock_lock_irqsave(&kbd_lock);
+        if (kbd_head != kbd_tail) {
+            char c = kbd_buffer[kbd_tail];
+            kbd_tail = (kbd_tail + 1) % KEYBOARD_BUFFER_SIZE;
+            spinlock_unlock_irqrestore(&kbd_lock, flags);
+            return c;
+        }
+        spinlock_unlock_irqrestore(&kbd_lock, flags);
         Yield();
     }
-
-    char c = kbd_buffer[kbd_tail];
-    kbd_tail = (kbd_tail + 1) % KEYBOARD_BUFFER_SIZE;
-    return c;
 }
