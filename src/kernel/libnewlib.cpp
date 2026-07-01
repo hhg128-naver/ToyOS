@@ -96,6 +96,11 @@ int read(int file, char* ptr, int len)
 					{
 						Layer_TerminalPutChar(g_ShellLayer, '\b', 0x00FFFFFF, 0x00C6C6C6);
 					}
+					else
+					{
+						char str[2] = {'\b', '\0'};
+						kPrintString(boot_info_global, str, 0x00FFFFFF);
+					}
 				}
 				continue;
 			}
@@ -103,6 +108,11 @@ int read(int file, char* ptr, int len)
 			if (g_ShellLayer)
 			{
 				Layer_TerminalPutChar(g_ShellLayer, c, 0x00FFFFFF, 0x00C6C6C6);
+			}
+			else
+			{
+				char str[2] = {c, '\0'};
+				kPrintString(boot_info_global, str, 0x00FFFFFF);
 			}
 
 			if (ptr[i] == '\n')

@@ -83,6 +83,24 @@ extern "C" uint64_t SyscallHandler(uint64_t syscall_num, uint64_t arg1, uint64_t
         for (i = 0; i < len; i++)
         {
             buf[i] = Keyboard_GetChar();
+            if (buf[i] == '\b')
+            {
+                if (i > 0)
+                {
+                    char str[2] = {'\b', '\0'};
+                    kPrintString(boot_info_global, str, 0x00FFFFFF);
+                    i -= 2;
+                }
+                else
+                {
+                    i--;
+                }
+                continue;
+            }
+
+            char str[2] = {buf[i], '\0'};
+            kPrintString(boot_info_global, str, 0x00FFFFFF);
+
             if (buf[i] == '\n')
             {
                 i++;

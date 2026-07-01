@@ -55,9 +55,6 @@ void Keyboard_Handler() {
             }
             spinlock_unlock_irqrestore(&kbd_lock, flags);
 
-            /* 에코 (화면에 즉시 출력) */
-            char str[2] = {c, '\0'};
-            kPrintString(boot_info_global, str, 0x00FFFFFF);
         }
     }
 }
