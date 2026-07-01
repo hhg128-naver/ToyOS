@@ -31,14 +31,7 @@ sudo apt update
 sudo apt install -y build-essential clang lld nasm gnu-efi ovmf qemu-system-x86 curl git dosfstools
 ```
 
-### 2. 크로스 컴파일 툴체인 빌드
-프로젝트 컴파일과 Newlib 연동을 위해 `x86_64-elf` 대상 툴체인을 먼저 빌드해야 합니다. (최초 1회 실행, 소요 시간 수 분~수십 분)
-```bash
-chmod +x build_toolchain.sh
-./build_toolchain.sh
-```
-
-### 3. 하드디스크 이미지 및 마운트 폴더 생성
+### 2. 하드디스크 이미지 및 마운트 폴더 생성
 빌드 스크립트가 이미지를 마운트하고 커널을 복사할 수 있도록 빈 디스크 이미지를 포맷하여 준비하고, 마운트 포인트 디렉토리(`mnt`)를 생성합니다.
 ```bash
 # 마운트 포인트 디렉토리 생성 (누락 시 빌드 에러 발생)
@@ -49,14 +42,15 @@ dd if=/dev/zero of=hdd.img bs=1M count=64
 mkfs.vfat -F 32 hdd.img
 ```
 
-### 4. 전체 프로젝트 빌드
+### 3. 전체 프로젝트 빌드
 부트로더(`bootx64.efi`)와 커널(`kernel`), 사용자 프로그램을 빌드합니다.
 ```bash
 make all
 ```
 
-### 5. QEMU 에뮬레이터 실행
+### 4. QEMU 에뮬레이터 실행
 가상 하드디스크 이미지에 커널과 부트로더를 심어 UEFI 모드로 실행합니다. (실행 시 `sudo` 마운트 조작을 위한 리눅스 비밀번호 입력이 필요합니다.)
 ```bash
 make run-uefi-hdd
 ```
+
