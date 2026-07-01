@@ -119,7 +119,7 @@ public:
         {
             kPrintf("ToyOS> ");
 
-            if (fgets(input, MAX_COMMAND_LEN, stdin) == NULL)
+            if (fgets(input, MAX_COMMAND_LEN, stdin) == nullptr)
             {
                 continue;
             }
@@ -181,7 +181,7 @@ public:
     const char *getDescription() const override { return "List files in root directory"; }
     void execute(const char *args) override
     {
-        if (vfs_root == NULL)
+        if (vfs_root == nullptr)
         {
             kPrintf("Error: VFS root not found.\n");
             return;
@@ -194,7 +194,7 @@ public:
         while (1)
         {
             VFS_Node *node = VFS_ReadDir(vfs_root, i);
-            if (node == NULL)
+            if (node == nullptr)
                 break;
 
             kPrintf("[%2d]   %s   %10d  %s\n",
@@ -222,15 +222,15 @@ public:
             return;
         }
 
-        if (vfs_root == NULL)
+        if (vfs_root == nullptr)
             return;
 
-        VFS_Node *target = NULL;
+        VFS_Node *target = nullptr;
         int i = 0;
         while (1)
         {
             VFS_Node *node = VFS_ReadDir(vfs_root, i++);
-            if (node == NULL)
+            if (node == nullptr)
                 break;
 
             if (strcmp(node->name, args) == 0)
@@ -241,7 +241,7 @@ public:
             ::free(node);
         }
 
-        if (target == NULL)
+        if (target == nullptr)
         {
             kPrintf("File not found: %s\n", args);
             return;

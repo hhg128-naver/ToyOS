@@ -7,18 +7,18 @@
 #include <string.h>
 #include <stdlib.h>
 
-static uint32_t *back_buffer = NULL;
+static uint32_t *back_buffer = nullptr;
 static uint64_t back_buffer_size = 0;
 static LayerManager layer_manager;
-Layer *g_ShellLayer = NULL;
-Window *shell_win = NULL;
+Layer *g_ShellLayer = nullptr;
+Window *shell_win = nullptr;
 
 void Graphics_Init(BootInfo *binfo)
 {
     back_buffer_size = binfo->horizontal_resolution * binfo->vertical_resolution * sizeof(uint32_t);
     back_buffer = (uint32_t *)kmalloc(back_buffer_size);
     
-    if (back_buffer != NULL)
+    if (back_buffer != nullptr)
     {
         memset(back_buffer, 0, back_buffer_size);
     }
@@ -28,7 +28,7 @@ void Graphics_Init(BootInfo *binfo)
 
 void SwapBuffers(BootInfo *binfo)
 {
-    if (back_buffer == NULL) return;
+    if (back_buffer == nullptr) return;
     memcpy(binfo->framebuffer, back_buffer, back_buffer_size);
 }
 
@@ -37,13 +37,13 @@ void SwapBuffers(BootInfo *binfo)
 Layer* CreateLayer(int width, int height, uint32_t transparent_color)
 {
     Layer *layer = (Layer *)kmalloc(sizeof(Layer));
-    if (!layer) return NULL;
+    if (!layer) return nullptr;
 
     layer->buffer = (uint32_t *)kmalloc(width * height * sizeof(uint32_t));
     if (!layer->buffer)
     {
         kfree(layer);
-        return NULL;
+        return nullptr;
     }
 
     layer->width = width;
@@ -190,13 +190,13 @@ void Layer_TerminalPrintString(Layer *layer, const char *str, uint32_t color, ui
 Window* CreateWindow(int x, int y, int width, int height, const char *title)
 {
     Window *win = (Window *)kmalloc(sizeof(Window));
-    if (!win) return NULL;
+    if (!win) return nullptr;
 
     win->layer = CreateLayer(width, height, 0xFF000001); 
     if (!win->layer)
     {
         kfree(win);
-        return NULL;
+        return nullptr;
     }
 
     win->layer->x = x;
@@ -222,7 +222,7 @@ void LayerManager_Init()
     layer_manager.top = 0;
     for (int i = 0; i < MAX_LAYERS; i++)
     {
-        layer_manager.layers[i] = NULL;
+        layer_manager.layers[i] = nullptr;
     }
 }
 
@@ -251,12 +251,12 @@ Layer* LayerManager_GetLayerAt(int x, int y)
             }
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 void LayerManager_Render(BootInfo *binfo)
 {
-    if (back_buffer == NULL) return;
+    if (back_buffer == nullptr) return;
     memset(back_buffer, 0, back_buffer_size);
 
     int screen_w = binfo->horizontal_resolution;
@@ -301,7 +301,7 @@ void LayerManager_Render(BootInfo *binfo)
 /* --- Direct Draw API --- */
 void DrawPixel(BootInfo *binfo, int x, int y, uint32_t color)
 {
-    if (back_buffer == NULL) return;
+    if (back_buffer == nullptr) return;
     if (x < 0 || x >= (int)binfo->horizontal_resolution || y < 0 || y >= (int)binfo->vertical_resolution)
         return;
     back_buffer[y * binfo->horizontal_resolution + x] = color;
@@ -323,7 +323,7 @@ void DrawRect(BootInfo *binfo, int x, int y, int width, int height, uint32_t col
 
 void DrawFillRect(BootInfo *binfo, int x, int y, int width, int height, uint32_t color)
 {
-    if (back_buffer == NULL) return;
+    if (back_buffer == nullptr) return;
     for (int dy = 0; dy < height; dy++)
     {
         int ny = y + dy;

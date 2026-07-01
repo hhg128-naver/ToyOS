@@ -27,4 +27,5 @@ toolchain/install/include
 toolchain/install/lib
 toolchain/install/libexec
 toolchain/install/share
+toolchain/install/clang_include
 mnt/

@@ -3,9 +3,9 @@
 #include <string.h>
 
 /* GDT 엔트리 배열 (최소한의 구성 -> 확장) 
- * 0: NULL, 1: KCode, 2: KData, 3: UData, 4: UCode, 5-6: TSS for BSP, 7+: TSS for APs
+ * 0: nullptr, 1: KCode, 2: KData, 3: UData, 4: UCode, 5-6: TSS for BSP, 7+: TSS for APs
  * 16비트 TSSDescriptor는 2개의 GDTEntry 슬롯을 차지하므로, GDT 크기는:
- * 5 (NULL ~ UserCode) + SMP_MAX_CPUS * 2
+ * 5 (nullptr ~ UserCode) + SMP_MAX_CPUS * 2
  */
 static struct GDTEntry gdt[5 + SMP_MAX_CPUS * 2];
 struct GDTPtr gdt_ptr;   /* AP에서 접근할 수 있도록 non-static */
@@ -47,7 +47,7 @@ void SetTSSStack(uint8_t cpu_index, uint64_t stack_addr)
 }
 
 void InitGDT() {
-    /* NULL Descriptor */
+    /* nullptr Descriptor */
     SetGDTEntry(0, 0, 0, 0, 0);
 
     /* Kernel Code Segment (64-bit) - Index 1 (Selector 0x08) */

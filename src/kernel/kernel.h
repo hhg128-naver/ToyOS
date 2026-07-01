@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#ifndef NULL
-#define NULL ((void *)0)
-#endif
-
 /*
  * BootInfo 구조체: UEFI 부트로더에서 커널로 전달되는 시스템 정보입니다.
  */

@@ -184,7 +184,7 @@ void *VMM_CreateAddressSpace()
 	/* 새로운 PML4 할당 */
 	pt_entry *pml4 = (pt_entry *)PMM_AllocPage();
 	if (!pml4)
-		return NULL;
+		return nullptr;
 	for (int i = 0; i < 512; i++)
 		pml4[i] = 0;
 
@@ -193,7 +193,7 @@ void *VMM_CreateAddressSpace()
 	if (!new_pdpt)
 	{
 		PMM_FreePage(pml4);
-		return NULL;
+		return nullptr;
 	}
 	for (int i = 0; i < 512; i++)
 		new_pdpt[i] = 0;

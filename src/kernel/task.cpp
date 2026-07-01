@@ -46,13 +46,13 @@ void InitializeTaskSystem()
     
     mainTask->id = task_count++;
     mainTask->state = TASK_RUNNING;
-    mainTask->stack_base = NULL;
+    mainTask->stack_base = nullptr;
     mainTask->kernel_stack_top = 0;
     mainTask->rsp = 0;
     mainTask->pml4 = GetCR3();
     
     for (int i = 0; i < MAX_TASKS; i++)
-        tasks[i] = NULL;
+        tasks[i] = nullptr;
     tasks[0] = mainTask;
 
     /* BSP의 LAPIC ID 를 확인하여 BSP의 태스크 인덱스를 0번으로 설정 */
@@ -73,20 +73,20 @@ Task* CreateTask(TaskEntryPointFunc entryPoint)
     if (task_count >= MAX_TASKS) {
         kPrintf("Error: Max tasks reached.\n");
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
 
     Task* newTask = (Task*)kmalloc(sizeof(Task));
     if (!newTask) {
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
     
     void* stack = kmalloc(TASK_STACK_SIZE);
     if (!stack) {
         kfree(newTask);
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
 
     newTask->id = task_count;
@@ -126,20 +126,20 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
     if (task_count >= MAX_TASKS) {
         kPrintf("Error: Max tasks reached.\n");
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
 
     Task* newTask = (Task*)kmalloc(sizeof(Task));
     if (!newTask) {
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
     
     void* pml4 = VMM_CreateAddressSpace();
     if (!pml4) {
         kfree(newTask);
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
 
     void* kstack = kmalloc(TASK_STACK_SIZE);
@@ -147,7 +147,7 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
         VMM_FreeAddressSpace(pml4);
         kfree(newTask);
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
 
     void* ustack_phys = PMM_AllocPage();
@@ -156,7 +156,7 @@ Task* CreateUserTask(void (*entryPoint)(), int arg) {
         VMM_FreeAddressSpace(pml4);
         kfree(newTask);
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
     void* ustack_virt = (void*)0x00007FFFFFFF0000;
     VMM_MapPageEx((pt_entry *)pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
@@ -204,7 +204,7 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     int slot = -1;
     for (int i = 0; i < MAX_TASKS; i++)
     {
-        if (tasks[i] == NULL)
+        if (tasks[i] == nullptr)
         {
             slot = i;
             break;
@@ -214,33 +214,33 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
     if (slot == -1) {
         kPrintf("Error: Max tasks reached.\n");
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
 
     void* kstack = kmalloc(TASK_STACK_SIZE);
     if (!kstack) {
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
     
     void* ustack_phys = PMM_AllocPage();
     if (!ustack_phys) {
         kfree(kstack);
         spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-        return NULL;
+        return nullptr;
     }
     void* ustack_virt = (void*)0x00007FFFFFFF0000;
     VMM_MapPageEx((pt_entry *)pml4, ustack_virt, ustack_phys, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     uint64_t ustack_top = (uint64_t)ustack_virt + PAGE_SIZE;
 
     Task* newTask = tasks[slot];
-    if (newTask == NULL) {
+    if (newTask == nullptr) {
         newTask = (Task*)kmalloc(sizeof(Task));
         if (!newTask) {
             PMM_FreePage(ustack_phys);
             kfree(kstack);
             spinlock_unlock_irqrestore(&g_kernel_lock, flags);
-            return NULL;
+            return nullptr;
         }
         tasks[slot] = newTask;
         if (slot >= task_count) task_count = slot + 1;
@@ -278,7 +278,7 @@ Task* CreateELFTask(uint64_t entryPoint, int arg, void* pml4) {
 Task* GetCurrentTask() {
     uint32_t cpu_id = get_cpu_id();
     int idx = per_cpu_task_idx[cpu_id];
-    if (idx < 0 || idx >= task_count) return NULL;
+    if (idx < 0 || idx >= task_count) return nullptr;
     return tasks[idx];
 }
 
@@ -394,7 +394,7 @@ uint64_t Schedule(uint64_t current_rsp) {
     Task* next_task = tasks[next_idx];
 
     /* 페이지 테이블(CR3) 전환 */
-    if (next_task->pml4 != NULL && next_task->pml4 != GetCR3())
+    if (next_task->pml4 != nullptr && next_task->pml4 != GetCR3())
         LoadPageTable(next_task->pml4);
 
     /* TSS RSP0 갱신 */
@@ -437,7 +437,7 @@ uint64_t Schedule(uint64_t current_rsp) {
             if (!in_use)
             {
                 tasks_to_reclaim[reclaim_count++] = tasks[i];
-                tasks[i] = NULL;
+                tasks[i] = nullptr;
             }
         }
     }

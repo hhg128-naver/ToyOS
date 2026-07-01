@@ -34,7 +34,7 @@ static uint8_t MP_Checksum(void *addr, int len)
  *
  * @param start: 탐색 시작 물리 주소
  * @param len:   탐색 범위 (바이트)
- * @return 발견된 MPFloatingPointer 포인터, 못 찾으면 NULL
+ * @return 발견된 MPFloatingPointer 포인터, 못 찾으면 nullptr
  */
 static MPFloatingPointer* MP_SearchRange(uint64_t start, uint32_t len)
 {
@@ -63,7 +63,7 @@ static MPFloatingPointer* MP_SearchRange(uint64_t start, uint32_t len)
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 /*
@@ -74,11 +74,11 @@ static MPFloatingPointer* MP_SearchRange(uint64_t start, uint32_t len)
  * 2. 시스템 기본 메모리 마지막 1KB (0x9FC00 ~ 0x9FFFF)
  * 3. BIOS ROM 영역 (0xF0000 ~ 0xFFFFF)
  *
- * @return 발견된 MPFloatingPointer 포인터, 못 찾으면 NULL
+ * @return 발견된 MPFloatingPointer 포인터, 못 찾으면 nullptr
  */
 static MPFloatingPointer* MP_FindFloatingPointer(void)
 {
-    MPFloatingPointer *fps = NULL;
+    MPFloatingPointer *fps = nullptr;
 
     /*
      * 1. EBDA (Extended BIOS Data Area) 탐색
@@ -113,7 +113,7 @@ static MPFloatingPointer* MP_FindFloatingPointer(void)
     if (fps)
         return fps;
 
-    return NULL;
+    return nullptr;
 }
 
 /*
@@ -301,7 +301,7 @@ int MP_Init(void)
         /* mp_feature1 == 0이면 mp_config_ptr이 유효한 Config Table을 가리킵니다 */
         if (fps->mp_config_ptr == 0)
         {
-            kPrintf("MP: Config Table pointer is NULL.\n");
+            kPrintf("MP: Config Table pointer is nullptr.\n");
             return -1;
         }
 
@@ -331,11 +331,11 @@ int MP_Init(void)
 /*
  * MP_GetInfo: 파싱된 MP 정보를 반환합니다.
  *
- * @return MPInfo 구조체에 대한 포인터, 초기화 전이면 NULL
+ * @return MPInfo 구조체에 대한 포인터, 초기화 전이면 nullptr
  */
 const MPInfo* MP_GetInfo(void)
 {
     if (!mp_initialized)
-        return NULL;
+        return nullptr;
     return &mp_info;
 }

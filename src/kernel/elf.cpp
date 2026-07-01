@@ -13,14 +13,14 @@ VFS_Node *VFS_FindFile(VFS_Node *parent, const char *name)
 {
     if (!parent)
     {
-        return NULL;
+        return nullptr;
     }
         
     int i = 0;
     while (1)
     {
         VFS_Node *node = VFS_ReadDir(parent, i++);
-        if (node == NULL)
+        if (node == nullptr)
         {
             break;
         }
@@ -31,29 +31,29 @@ VFS_Node *VFS_FindFile(VFS_Node *parent, const char *name)
         }
         free(node);
     }
-    return NULL;
+    return nullptr;
 }
 
 Task *LoadELFProcess(const char *filename, int arg)
 {
-    if (vfs_root == NULL)
+    if (vfs_root == nullptr)
     {
-        kPrintf("ELF Loader: VFS Root is NULL\n");
-        return NULL;
+        kPrintf("ELF Loader: VFS Root is nullptr\n");
+        return nullptr;
     }
 
     VFS_Node *target_node = VFS_FindFile(vfs_root, filename);
     if (!target_node)
     {
         kPrintf("ELF Loader: File '%s' not found.\n", filename);
-        return NULL;
+        return nullptr;
     }
 
     if (target_node->flags & VFS_DIRECTORY)
     {
         kPrintf("ELF Loader: '%s' is a directory.\n", filename);
         free(target_node);
-        return NULL;
+        return nullptr;
     }
 
     Elf64_Ehdr header;
@@ -62,7 +62,7 @@ Task *LoadELFProcess(const char *filename, int arg)
     {
         kPrintf("ELF Loader: Failed to read ELF Header.\n");
         free(target_node);
-        return NULL;
+        return nullptr;
     }
 
     if (header.e_ident[0] != 0x7F || header.e_ident[1] != 'E' ||
@@ -70,21 +70,21 @@ Task *LoadELFProcess(const char *filename, int arg)
     {
         kPrintf("ELF Loader: Not a valid ELF file.\n");
         free(target_node);
-        return NULL;
+        return nullptr;
     }
 
     if (header.e_ident[4] != 2)
     {
         kPrintf("ELF Loader: Not a 64-bit ELF.\n");
         free(target_node);
-        return NULL;
+        return nullptr;
     }
 
     if (header.e_machine != 62)
     {
         kPrintf("ELF Loader: Not an x86_64 executable.\n");
         free(target_node);
-        return NULL;
+        return nullptr;
     }
 
     /* 프로그램 헤더 읽기 */
@@ -94,7 +94,7 @@ Task *LoadELFProcess(const char *filename, int arg)
     {
         kPrintf("ELF Loader: Memory allocation failed.\n");
         free(target_node);
-        return NULL;
+        return nullptr;
     }
     VFS_Read(target_node, header.e_phoff, phdr_size, (uint8_t *)phdrs);
 
@@ -105,7 +105,7 @@ Task *LoadELFProcess(const char *filename, int arg)
         kPrintf("ELF Loader: Failed to create address space.\n");
         kfree(phdrs);
         free(target_node);
-        return NULL;
+        return nullptr;
     }
 
     /*
@@ -139,7 +139,7 @@ Task *LoadELFProcess(const char *filename, int arg)
                 VMM_FreeAddressSpace(pml4);
                 kfree(phdrs);
                 free(target_node);
-                return NULL;
+                return nullptr;
             }
 
             /* 물리 페이지를 0으로 초기화 (BSS 영역 대응) */

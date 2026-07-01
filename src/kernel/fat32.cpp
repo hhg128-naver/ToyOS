@@ -144,7 +144,7 @@ void FAT32FileSystem::init() {
     vfs_root->size = 0;
     vfs_root->inode = bpb.root_cluster;
     vfs_root->readdir = FAT32_ReadDirBridge;
-    vfs_root->read = NULL;
+    vfs_root->read = nullptr;
     
     kPrintf("FAT32: Mounted successfully.\n");
 }
@@ -153,7 +153,7 @@ VFS_Node* FAT32FileSystem::readDir(VFS_Node* node, uint32_t index) {
     uint32_t cluster = node->inode;
     uint32_t cluster_size = sectors_per_cluster * 512;
     uint8_t* buffer = (uint8_t*)malloc(cluster_size);
-    if (!buffer) return NULL;
+    if (!buffer) return nullptr;
     
     uint32_t current_index = 0;
     
@@ -167,7 +167,7 @@ VFS_Node* FAT32FileSystem::readDir(VFS_Node* node, uint32_t index) {
             // 엔트리 끝 확인
             if (entries[i].name[0] == 0x00) {
                 free(buffer);
-                return NULL;
+                return nullptr;
             }
             // 삭제된 엔트리 또는 LFN(Long File Name) 건너뜀
             if ((uint8_t)entries[i].name[0] == 0xE5) continue;
@@ -179,7 +179,7 @@ VFS_Node* FAT32FileSystem::readDir(VFS_Node* node, uint32_t index) {
                 VFS_Node* child = (VFS_Node*)malloc(sizeof(VFS_Node));
                 if (!child) {
                     free(buffer);
-                    return NULL;
+                    return nullptr;
                 }
                 memset(child, 0, sizeof(VFS_Node));
                 
@@ -216,7 +216,7 @@ VFS_Node* FAT32FileSystem::readDir(VFS_Node* node, uint32_t index) {
     }
     
     free(buffer);
-    return NULL;
+    return nullptr;
 }
 
 uint32_t FAT32FileSystem::read(VFS_Node* node, uint32_t offset, uint32_t size, uint8_t* buffer) {

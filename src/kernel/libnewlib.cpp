@@ -11,7 +11,7 @@
 #define NEWLIB_HEAP_START 0x02000000
 #define NEWLIB_HEAP_SIZE  (2 * 1024 * 1024)
 
-static char* heap_end = NULL;
+static char* heap_end = nullptr;
 
 int errno;
 int* __errno() { return &errno; }
@@ -25,13 +25,13 @@ void* sbrk(ptrdiff_t incr)
 	kPrintf(logStr);
 
 	char* prev_heap_end;
-	if (heap_end == NULL)
+	if (heap_end == nullptr)
 	{
 		heap_end = (char*)NEWLIB_HEAP_START;
 		for (uint64_t addr = NEWLIB_HEAP_START; addr < NEWLIB_HEAP_START + NEWLIB_HEAP_SIZE; addr += PAGE_SIZE)
 		{
 			void* phys = PMM_AllocPage();
-			if (phys == NULL)
+			if (phys == nullptr)
 			{
 				errno = ENOMEM;
 				return (void*)-1;
@@ -56,7 +56,7 @@ int write(int file, char* ptr, int len)
 {
 	if (file == 1 || file == 2)
 	{ // stdout 또는 stderr
-		if (g_ShellLayer != NULL)
+		if (g_ShellLayer != nullptr)
 		{
 			for (int i = 0; i < len; i++)
 			{

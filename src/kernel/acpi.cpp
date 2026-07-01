@@ -71,7 +71,7 @@ static int ACPI_ValidateRSDP(RSDP *rsdp)
  *
  * @param rsdp: 유효한 RSDP 포인터
  * @param signature: 찾고자 하는 4바이트 시그니처 (uint32_t)
- * @return 발견된 테이블의 SDT 헤더 포인터, 못 찾으면 NULL
+ * @return 발견된 테이블의 SDT 헤더 포인터, 못 찾으면 nullptr
  */
 static ACPISDTHeader* ACPI_FindTable(RSDP *rsdp, uint32_t signature)
 {
@@ -85,7 +85,7 @@ static ACPISDTHeader* ACPI_FindTable(RSDP *rsdp, uint32_t signature)
 
         if (!xsdt)
         {
-            kPrintf("ACPI: XSDT address is NULL, falling back to RSDT.\n");
+            kPrintf("ACPI: XSDT address is nullptr, falling back to RSDT.\n");
             goto use_rsdt;
         }
 
@@ -112,7 +112,7 @@ static ACPISDTHeader* ACPI_FindTable(RSDP *rsdp, uint32_t signature)
         }
 
         kPrintf("ACPI: Table 0x%08x not found in XSDT.\n", signature);
-        return NULL;
+        return nullptr;
     }
 
 use_rsdt:
@@ -124,15 +124,15 @@ use_rsdt:
 
         if (!rsdt)
         {
-            kPrintf("ACPI: RSDT address is NULL.\n");
-            return NULL;
+            kPrintf("ACPI: RSDT address is nullptr.\n");
+            return nullptr;
         }
 
         /* RSDT 체크섬 검증 */
         if (ACPI_Checksum(rsdt, rsdt->header.length) != 0)
         {
             kPrintf("ACPI: RSDT checksum failed.\n");
-            return NULL;
+            return nullptr;
         }
 
         /* RSDT 엔트리 수 계산 (각 엔트리는 32비트 포인터) */
@@ -151,7 +151,7 @@ use_rsdt:
         }
 
         kPrintf("ACPI: Table 0x%08x not found in RSDT.\n", signature);
-        return NULL;
+        return nullptr;
     }
 }
 
@@ -389,11 +389,11 @@ int ACPI_Init(BootInfo *boot_info)
 /*
  * ACPI_GetInfo: 파싱된 ACPI 정보를 반환합니다.
  *
- * @return ACPIInfo 구조체에 대한 포인터, 초기화 전이면 NULL
+ * @return ACPIInfo 구조체에 대한 포인터, 초기화 전이면 nullptr
  */
 const ACPIInfo* ACPI_GetInfo(void)
 {
     if (!acpi_initialized)
-        return NULL;
+        return nullptr;
     return &acpi_info;
 }

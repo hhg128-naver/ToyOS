@@ -4,7 +4,7 @@
 /**
  * 전역 루트 노드
  */
-VFS_Node* vfs_root = NULL;
+VFS_Node* vfs_root = nullptr;
 
 /**
  * 파일 데이터 읽기 추상화 레이어
@@ -23,7 +23,7 @@ VFS_Node* VFS_ReadDir(VFS_Node* node, uint32_t index) {
     if (node && (node->flags & VFS_DIRECTORY) && node->readdir) {
         return node->readdir(node, index);
     }
-    return NULL;
+    return nullptr;
 }
 
 /**
@@ -33,5 +33,5 @@ VFS_Node* VFS_FindDir(VFS_Node* node, char* name) {
     if (node && (node->flags & VFS_DIRECTORY) && node->finddir) {
         return node->finddir(node, name);
     }
-    return NULL;
+    return nullptr;
 }

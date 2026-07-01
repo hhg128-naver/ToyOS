@@ -1,6 +1,6 @@
 #include "heap.h"
 
-static HeapBlock* free_list_start = NULL;
+static HeapBlock* free_list_start = nullptr;
 
 void Heap_Init(BootInfo* binfo)
 {
@@ -9,23 +9,23 @@ void Heap_Init(BootInfo* binfo)
 	for (uint64_t addr = HEAP_START; addr < HEAP_START + HEAP_SIZE; addr += PAGE_SIZE) 
 	{
 		void* phys = PMM_AllocPage();
-		if (phys == NULL) return; // 메모리 부족
+		if (phys == nullptr) return; // 메모리 부족
 		VMM_MapPage((void*)addr, phys, PAGE_PRESENT | PAGE_WRITABLE);
 	}
 
 	/* 2. 초기 가용 리스트 생성 (전체 힙을 하나의 블록으로) */
 	free_list_start = (HeapBlock*)HEAP_START;
 	free_list_start->size = HEAP_SIZE - sizeof(HeapBlock);
-	free_list_start->next = NULL;
+	free_list_start->next = nullptr;
 	free_list_start->is_free = 1;
 }
 
 void* kmalloc(size_t size)
 {
-	if (size == 0) return NULL;
+	if (size == 0) return nullptr;
 
 	HeapBlock* current = free_list_start;
-	while (current != NULL) {
+	while (current != nullptr) {
 		/* 충분한 크기의 가용 블록 발견 */
 		if (current->is_free && current->size >= size) {
 
@@ -46,12 +46,12 @@ void* kmalloc(size_t size)
 		current = current->next;
 	}
 
-	return NULL; // 적합한 블록 없음
+	return nullptr; // 적합한 블록 없음
 }
 
 void kfree(void* ptr)
 {
-	if (ptr == NULL) return;
+	if (ptr == nullptr) return;
 
 	/* 포인터로부터 헤더 위치 계산 */
 	HeapBlock* block = (HeapBlock*)((uint8_t*)ptr - sizeof(HeapBlock));
@@ -59,8 +59,8 @@ void kfree(void* ptr)
 
 	/* 인접한 가용 블록 병합 (Coalescing) */
 	HeapBlock* current = free_list_start;
-	while (current != NULL) {
-		if (current->is_free && current->next != NULL && current->next->is_free) {
+	while (current != nullptr) {
+		if (current->is_free && current->next != nullptr && current->next->is_free) {
 			current->size += sizeof(HeapBlock) + current->next->size;
 			current->next = current->next->next;
 			/* 병합 후 다시 현재 블록부터 병합 가능한지 확인하기 위해 continue 대신 루프 유지 */

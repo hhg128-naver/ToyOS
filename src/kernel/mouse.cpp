@@ -5,7 +5,7 @@
 
 
 
-static BootInfo *mouse_boot_info = NULL;
+static BootInfo *mouse_boot_info = nullptr;
 static MouseState current_mouse_state = {400, 300, 0, 0};
 static uint8_t mouse_cycle = 0;
 static uint8_t mouse_packet[4];
@@ -14,7 +14,7 @@ static uint8_t mouse_packet[4];
 static int mouse_sensitivity = 2;
 
 /* 마우스 커서 레이어 */
-static Layer *mouse_layer = NULL;
+static Layer *mouse_layer = nullptr;
 
 /* IntelliMouse 모드 여부 (4바이트 패킷) */
 static int mouse_has_wheel = 0;
