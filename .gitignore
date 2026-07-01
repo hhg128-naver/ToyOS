@@ -1,5 +1,6 @@
 # Build artifacts
 *.o
+*.elf
 /kernel
 /bootx64.so
 /bootx64.efi
