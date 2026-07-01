@@ -1,64 +1,62 @@
 # ToyOS
 
-ToyOS는 취미용으로 개발 중인 x86_64 아키텍처 기반의 네이티브 UEFI 운영체제 커널입니다.
+ToyOS는 x86_64 아키텍처 기반의 네이티브 UEFI 운영체제 커널입니다.
 
 ## 🚀 주요 특징 (Key Features)
 
-- **Native UEFI Bootloader**: BIOS/Multiboot 대신 UEFI 표준 부트 서비스를 직접 사용하여 부팅합니다.
-- **64-bit (Long Mode) Kernel**: 현대적인 64비트 아키텍처를 지원하며 64비트 모드에서 커널이 실행됩니다.
-- **GOP Graphics Output**: UEFI의 Graphics Output Protocol(GOP)을 활용하여 고해상도 그래픽 프레임버퍼를 제어합니다.
-- **ELF Loader**: 부트로더가 디스크의 FAT32 파일 시스템에서 커널(ELF64)을 로드하고 엔트리 포인트로 제어권을 이행합니다.
+- **Native UEFI Bootloader**: Legacy BIOS/Multiboot 대신 UEFI 표준 부트 서비스(GOP 등)를 직접 사용하여 시스템을 부팅합니다.
+- **64-bit Long Mode Kernel**: 현대적인 64비트 아키텍처 환경에서 커널이 실행됩니다.
+- **GOP Graphics Console**: UEFI GOP(Graphics Output Protocol) 및 PSF 폰트를 활용한 고해상도 그래픽 출력을 지원합니다.
+- **메모리 및 세그먼트 관리**: PML4 기반 4단계 페이징 가상 메모리 관리자(VMM), 물리 메모리 관리자(PMM), GDT/IDT 및 커널 힙 시스템을 구축하였습니다.
+- **멀티태스킹 및 선점형 스케줄링**: 여러 태스크를 동시에 실행하는 컨텍스트 스위칭 및 타이머 인터럽트 기반 선점형 스케줄러를 지원합니다.
+- **유저 모드(Ring 3) 및 시스템 콜**: Ring 3 전환과 Syscall 엔트리를 통한 커널-유저 공간 분리를 처리합니다.
+- **Newlib C 표준 라이브러리**: C 표준 라이브러리(printf, malloc 등) 및 FPU/SSE 연산 기능이 커널 내부와 연동되어 있습니다.
 
 ## 🛠 개발 환경 (Development Environment)
 
-- **OS**: Windows Subsystem for Linux (WSL - Ubuntu)
-- **Compiler**: GCC (x86_64-linux-gnu)
-- **Library**: gnu-efi
-- **Emulator**: QEMU (with OVMF firmware)
+- **Host OS**: Windows 11 (Windows Subsystem for Linux 2 - Ubuntu 22.04 LTS 이상)
+- **Compiler**: Clang / LLVM (ld.lld) & NASM Assembler
+- **Target Architecture**: `x86_64-elf`
+- **Libraries**: gnu-efi, Newlib (크로스 컴파일 툴체인으로 빌드)
+- **Emulator**: QEMU (OVMF UEFI Firmware 사용)
 
-## 📁 프로젝트 구조 (Project Structure)
-
-```text
-ToyOS/
-├── src/
-│   ├── bootloader/
-│   │   ├── legacy/      # 기존 BIOS용 부트 코드 (참고용)
-│   │   └── uefi/        # 네이티브 UEFI 부트로더 소스
-│   └── kernel/          # 64비트 커널 메인 소스
-├── doc/                 # UEFI 구현 계획 및 기술 가이드
-├── Makefile             # 빌드 자동화 스크립트
-└── .gitignore           # 빌드 산출물 제외 설정
-```
+---
 
 ## 🏗 빌드 및 실행 방법 (Build & Run)
 
-### 사전 요구 사항
-WSL 환경에서 다음 패키지가 필요합니다:
+### 1. 사전 필수 패키지 설치 (WSL 환경)
+WSL(Ubuntu) 터미널을 실행하고, 빌드 및 에뮬레이터 실행에 필요한 다음 패키지들을 설치합니다.
 ```bash
-sudo apt-get update
-sudo apt-get install -y gnu-efi ovmf qemu-system-x86
+sudo apt update
+sudo apt install -y build-essential clang lld nasm gnu-efi ovmf qemu-system-x86 curl git dosfstools
 ```
 
-### 전체 빌드
+### 2. 크로스 컴파일 툴체인 빌드
+프로젝트 컴파일과 Newlib 연동을 위해 `x86_64-elf` 대상 툴체인을 먼저 빌드해야 합니다. (최초 1회 실행, 소요 시간 수 분~수십 분)
+```bash
+chmod +x build_toolchain.sh
+./build_toolchain.sh
+```
+
+### 3. 하드디스크 이미지 및 마운트 폴더 생성
+빌드 스크립트가 이미지를 마운트하고 커널을 복사할 수 있도록 빈 디스크 이미지를 포맷하여 준비하고, 마운트 포인트 디렉토리(`mnt`)를 생성합니다.
+```bash
+# 마운트 포인트 디렉토리 생성 (누락 시 빌드 에러 발생)
+mkdir -p mnt
+
+# 64MB 크기의 FAT32 가상 하드디스크 이미지 파일 생성
+dd if=/dev/zero of=hdd.img bs=1M count=64
+mkfs.vfat -F 32 hdd.img
+```
+
+### 4. 전체 프로젝트 빌드
+부트로더(`bootx64.efi`)와 커널(`kernel`), 사용자 프로그램을 빌드합니다.
 ```bash
 make all
 ```
 
-### UEFI 모드 실행 (QEMU)
+### 5. QEMU 에뮬레이터 실행
+가상 하드디스크 이미지에 커널과 부트로더를 심어 UEFI 모드로 실행합니다. (실행 시 `sudo` 마운트 조작을 위한 리눅스 비밀번호 입력이 필요합니다.)
 ```bash
-make run-uefi
+make run-uefi-hdd
 ```
-성공적으로 실행되면 QEMU 창에 파란 화면과 함께 커널이 그린 그래픽이 나타납니다.
-
-## 📝 관련 문서 (Documentation)
-
-- [UEFI 구현 상세 계획](doc/UEFI_Implementation_Plan.md)
-- [UEFI 부팅 및 핸드오버 기술 가이드](doc/UEFI_Boot_Process_Guide.md)
-
-## 🎯 향후 목표 (Roadmap)
-
-- [x] UEFI 네이티브 부트 시스템 및 64비트 커널 핸드오버
-- [ ] GDT(Global Descriptor Table) 및 IDT(Interrupt Descriptor Table) 설정
-- [ ] 페이징(Paging) 기반 메모리 관리자 구현
-- [ ] 기초적인 키보드/마우스 드라이버 개발
-- [ ] 멀티태스킹 지원 (Scheduler)
