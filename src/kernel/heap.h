@@ -14,7 +14,7 @@
 typedef struct HeapBlock {
     uint64_t size;           // 블록 크기 (헤더 제외)
     struct HeapBlock* next;  // 다음 블록 포인터
-    int is_free;             // 1: 가용, 0: 사용 중
+    bool is_free;             // 1: 가용, 0: 사용 중
 } HeapBlock;
 
 #ifdef __cplusplus

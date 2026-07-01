@@ -17,7 +17,7 @@ void Heap_Init(BootInfo* binfo)
 	free_list_start = (HeapBlock*)HEAP_START;
 	free_list_start->size = HEAP_SIZE - sizeof(HeapBlock);
 	free_list_start->next = nullptr;
-	free_list_start->is_free = 1;
+	free_list_start->is_free = true;
 }
 
 void* kmalloc(size_t size)
@@ -27,20 +27,22 @@ void* kmalloc(size_t size)
 	HeapBlock* current = free_list_start;
 	while (current != nullptr) {
 		/* 충분한 크기의 가용 블록 발견 */
-		if (current->is_free && current->size >= size) {
+		if (current->is_free && current->size >= size) 
+		{
 
 			/* 블록 분할(Splitting) 여부 결정: 남은 공간이 헤더 + 최소 16바이트 이상일 때 */
-			if (current->size >= size + sizeof(HeapBlock) + 16) {
+			if (current->size >= size + sizeof(HeapBlock) + 16) 
+			{
 				HeapBlock* next_block = (HeapBlock*)((uint8_t*)current + sizeof(HeapBlock) + size);
 				next_block->size = current->size - size - sizeof(HeapBlock);
 				next_block->next = current->next;
-				next_block->is_free = 1;
+				next_block->is_free = true;
 
 				current->size = size;
 				current->next = next_block;
 			}
 
-			current->is_free = 0;
+			current->is_free = false;
 			return (void*)((uint8_t*)current + sizeof(HeapBlock));
 		}
 		current = current->next;
@@ -51,21 +53,27 @@ void* kmalloc(size_t size)
 
 void kfree(void* ptr)
 {
-	if (ptr == nullptr) return;
+	if (ptr == nullptr) 
+	{
+		return;
+	}
 
 	/* 포인터로부터 헤더 위치 계산 */
 	HeapBlock* block = (HeapBlock*)((uint8_t*)ptr - sizeof(HeapBlock));
-	block->is_free = 1;
+	block->is_free = true;
 
 	/* 인접한 가용 블록 병합 (Coalescing) */
 	HeapBlock* current = free_list_start;
-	while (current != nullptr) {
-		if (current->is_free && current->next != nullptr && current->next->is_free) {
+	while (current != nullptr) 
+	{
+		if (current->is_free && current->next != nullptr && current->next->is_free) 
+		{
 			current->size += sizeof(HeapBlock) + current->next->size;
 			current->next = current->next->next;
 			/* 병합 후 다시 현재 블록부터 병합 가능한지 확인하기 위해 continue 대신 루프 유지 */
 		}
-		else {
+		else 
+		{
 			current = current->next;
 		}
 	}
